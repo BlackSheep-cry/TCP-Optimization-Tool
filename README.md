@@ -1,7 +1,7 @@
 # TCP-Optimization-Tool 
 
 ## 简介
-一个半自动化的TCP调优工具，根据iperf3测试结果进行动态调整
+一个半自动化的TCP调优工具，根据iperf3测试结果进行动态调优
 
 更多技术细节请移步原帖：https://www.nodeseek.com/post-197087-1
 
