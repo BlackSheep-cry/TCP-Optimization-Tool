@@ -64,12 +64,14 @@ current_qdisc=$(sysctl net.core.default_qdisc | awk '{print $3}')
 
 if [[ "$current_cc" != "bbr" ]]; then
     echo "当前TCP拥塞控制算法: $current_cc，未启用BBR，尝试启用BBR..."
-    sysctl -w net.ipv4.tcp_congestion_control=bbr
+    echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+    sysctl -p
 fi
 
 if [[ "$current_qdisc" != "fq" ]]; then
     echo "当前队列管理算法: $current_qdisc，未启用fq，尝试启用fq..."
-    sysctl -w net.core.default_qdisc=fq
+    echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
+    sysctl -p
 fi
 
 # 检查iperf3是否已安装
