@@ -115,7 +115,7 @@ while true; do
 done
 
 while true; do
-    read -p "请输入往返时延 (RTT, ms): " rtt
+    read -p "请输入往返时延/ping值 (RTT, ms): " rtt
     # 验证输入是否为正整数且不为零
     if [[ "$rtt" =~ ^[1-9][0-9]*$ ]]; then
         break
