@@ -358,11 +358,8 @@ else
         fi
     done
 
-    echo "Traffic Control 配置已完成"
-
-
     # 写入 rc.local
-    echo "在 rc.local 中添加限速命令"
+    echo "配置开机自启"
     echo "#!/bin/bash" > /etc/rc.local
     echo "tc qdisc add dev $second_nic root handle 1:0 htb default 10" >> /etc/rc.local
     echo "tc class add dev $second_nic parent 1:0 classid 1:1 htb rate ${bandwidth_new}mbit ceil ${bandwidth_new}mbit" >> /etc/rc.local
@@ -371,6 +368,8 @@ else
     echo "tc filter add dev $second_nic protocol ip parent 1:0 prio 1 u32 match ip dst 0.0.0.0/0 flowid 1:2" >> /etc/rc.local
     echo "exit 0" >> /etc/rc.local
     chmod +x /etc/rc.local
+
+    echo "Traffic Control 配置已完成"
 
     # 停止 iperf3 服务端进程
     echo "停止 iperf3 服务端进程..."
