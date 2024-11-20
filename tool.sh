@@ -127,7 +127,7 @@ done
 echo "--------------------------------------------------"
 echo "本地带宽：$local_bandwidth Mbps"
 echo "服务器带宽：$server_bandwidth Mbps"
-echo "往返时延 (ping值)：$rtt ms"
+echo "往返时延(ping值)：$rtt ms"
 echo "--------------------------------------------------"
 
 # 计算BDP（带宽延迟积）
