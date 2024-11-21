@@ -18,8 +18,9 @@ Windows：https://github.com/ar51an/iperf3-win-builds/releases/download/3.17.1/i
 ### 2. 服务端一键部署
 
 ```
-bash <(wget -qO- https://raw.githubusercontent.com/BlackSheep-cry/TCP-Optimization-Tool/main/tool.sh) && chmod +x tool.sh && ./tool.sh
+wget -q https://raw.githubusercontent.com/BlackSheep-cry/TCP-Optimization-Tool/main/tool.sh -O tool.sh && chmod +x tool.sh && ./tool.sh
 ````
+
 
 ## 功能特点
 - 一键启用bbr+fq算法
