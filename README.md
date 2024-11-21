@@ -1,13 +1,24 @@
 # TCP-Optimization-Tool 
 
 ## 简介
-一个半自动化的TCP调优工具，根据iperf3测试结果进行动态调优
+一个半自动化的TCP调优工具，根据iperf3的测试结果进行动态调优
 
 更多技术细节请移步原帖：https://www.nodeseek.com/post-197087-1
 
 ## 快速使用
+
+### 1. 客户端安装iperf3
+
+Windows：https://github.com/ar51an/iperf3-win-builds/releases/download/3.17.1/iperf-3.17.1-win64.zip
+
+其他系统：https://iperf.fr/iperf-download.php
+
+解压后在 iperf3.exe 所在目录运行cmd即可
+
+### 2. 服务端一键部署
+
 ```
-bash <(curl -L -s https://raw.githubusercontent.com/BlackSheep-cry/TCP-Optimization-Tool/main/tool.sh) && chmod +x tool.sh && ./tool.sh
+bash <(wget -qO- https://raw.githubusercontent.com/BlackSheep-cry/TCP-Optimization-Tool/main/tool.sh) && chmod +x tool.sh && ./tool.sh
 ````
 
 ## 功能特点
