@@ -35,43 +35,6 @@ while true; do
 done
 echo "--------------------------------------------------"
 
-# 检查 iptables 是否安装
-check_iptables_installed() {
-    if ! command -v iptables &> /dev/null; then
-        echo "iptables 未安装，跳过防火墙检查"
-        return 1  # 返回 1 表示未安装
-    fi
-    return 0  # 返回 0 表示安装了 iptables
-}
-
-# 检查防火墙设置
-check_firewall() {
-    if check_iptables_installed; then
-        if sudo iptables -L -n | grep -q "5201"; then
-            echo "端口 5201 已放行"
-        else
-            echo "端口 5201 未放行，请检查防火墙设置"
-            exit 1  # 防火墙未放行，强制退出脚本
-        fi
-    else
-        echo "没有安装 iptables，跳过防火墙检查"
-    fi
-}
-
-# 检查端口5201是否被占用
-check_port_usage() {
-    if sudo ss -tuln | grep -q ":5201"; then
-        echo "端口 5201 已被占用，请关闭占用该端口的进程"
-        exit 1  # 端口已被占用，强制退出脚本
-    else
-        echo "端口 5201 未被占用"
-    fi
-}
-
-# 执行检查
-check_firewall
-check_port_usage
-
 
 # 检查TCP拥塞控制算法与队列管理算法
 current_cc=$(sysctl net.ipv4.tcp_congestion_control | awk '{print $3}')
