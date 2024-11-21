@@ -35,14 +35,25 @@ while true; do
 done
 echo "--------------------------------------------------"
 
+check_iptables_installed() {
+    if ! command -v iptables &> /dev/null; then
+        echo "iptables 未安装，跳过防火墙检查"
+        return 1  # 返回 1 表示未安装
+    fi
+    return 0  # 返回 0 表示安装了 iptables
+}
 
-# 检查端口5201是否被防火墙放行
+# 检查防火墙设置
 check_firewall() {
-    if sudo iptables -L -n | grep -q "5201"; then
-        echo "端口 5201 已放行"
+    if check_iptables_installed; then
+        if sudo iptables -L -n | grep -q "5201"; then
+            echo "端口 5201 已放行"
+        else
+            echo "端口 5201 未放行，请检查防火墙设置"
+            exit 1  # 防火墙未放行，强制退出脚本
+        fi
     else
-        echo "端口 5201 未放行，请检查防火墙设置"
-        exit 1  # 防火墙未放行，强制退出脚本
+        echo "跳过防火墙检查"
     fi
 }
 
@@ -55,6 +66,7 @@ check_port_usage() {
         echo "端口 5201 未被占用"
     fi
 }
+
 
 # 执行检查
 check_firewall
