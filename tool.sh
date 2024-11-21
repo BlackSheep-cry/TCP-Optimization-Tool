@@ -10,8 +10,11 @@ fi
 echo "--------------------------------------------------"
 echo "请阅读以下注意事项："
 echo "1. 此脚本的TCP调优操作对劣质线路无效"
-echo "2. 调参会消耗大量流量，小流量用户请谨慎调整"
-echo "3. 请在执行该脚本前放行5201端口"
+echo "2. 小带宽用户默认参数基本就跑满了，无需进行调优"
+echo "3. 调参消耗流量较多，请慎重调整"
+echo "4. 请在执行该脚本前放行5201端口"
+echo "5. 请先在客户端安装iperf3，不会安装/使用的请查看原贴"
+echo "6. 请在晚高峰使用该脚本"
 echo "--------------------------------------------------"
 echo "作者：BlackSheep   原帖链接：https://www.nodeseek.com/post-197087-1"
 echo "--------------------------------------------------"
@@ -74,6 +77,8 @@ if [[ "$current_qdisc" != "fq" ]]; then
     sysctl -p
 fi
 
+
+
 # 检查iperf3是否已安装
 if ! command -v iperf3 &> /dev/null; then
     echo "iperf3未安装，开始安装iperf3..."
@@ -117,7 +122,7 @@ while true; do
 done
 
 while true; do
-    read -p "请输入往返时延/ping值 (RTT, ms): " rtt
+    read -p "请输入往返时延/Ping值 (RTT, ms): " rtt
     # 验证输入是否为正整数且不为零
     if [[ "$rtt" =~ ^[1-9][0-9]*$ ]]; then
         break
@@ -129,7 +134,7 @@ done
 echo "--------------------------------------------------"
 echo "本地带宽：$local_bandwidth Mbps"
 echo "服务器带宽：$server_bandwidth Mbps"
-echo "往返时延(ping值)：$rtt ms"
+echo "往返时延/Ping值：$rtt ms"
 echo "--------------------------------------------------"
 
 # 计算BDP（带宽延迟积）
@@ -184,9 +189,9 @@ if [ "$choice" -eq 1 ]; then
         fi
     done
 
-    # 步骤一：重传为0时，增加3MiB
-    while [ "$retr" -eq 0 ]; do
-        echo "0重传，上调3MiB"
+    # 步骤一：重传≤5时，增加3MiB
+    while [ "$retr" -le 5 ]; do
+        echo "重传≤5，上调3MiB"
         new_value=$((new_value + 3 * 1024 * 1024))  # 每次上调3MiB
         sysctl -w net.ipv4.tcp_wmem="4096 16384 $new_value"
         sysctl -w net.ipv4.tcp_rmem="4096 87380 $new_value"
@@ -200,11 +205,16 @@ if [ "$choice" -eq 1 ]; then
             echo "无效输入，请输入一个大于或等于零的整数作为Retr数目。"
             read -p "请输入Retr数: " retr
         done
+
+        # 如果重传数超过5，进入步骤二
+        if [ "$retr" -gt 5 ]; then
+            break
+        fi
     done
 
-    # 步骤二：重传大于0时，下调1MiB
-    while [ "$retr" -gt 0 ]; do
-        echo "重传大于0，下调1MiB"
+    # 步骤二：重传>5时，下调1MiB
+    while [ "$retr" -gt 5 ]; do
+        echo "重传>5，下调1MiB"
         new_value=$((new_value - 1024 * 1024))  # 每次下调1MiB
         sysctl -w net.ipv4.tcp_wmem="4096 16384 $new_value"
         sysctl -w net.ipv4.tcp_rmem="4096 87380 $new_value"
@@ -218,6 +228,11 @@ if [ "$choice" -eq 1 ]; then
             echo "无效输入，请输入一个大于或等于零的整数作为Retr数目。"
             read -p "请输入Retr数: " retr
         done
+
+        # 如果重传数≤ 5，跳出循环进入下一环节
+        if [ "$retr" -le 5 ]; then
+            break
+        fi
     done
 
     # 最终下调0.5MiB并写入sysctl.conf
@@ -300,10 +315,10 @@ else
 
     echo "--------------------------------------------------"
 
-    # 步骤一：如果 Retr 为 0，上调限速值
-    while [ "$retr" -eq 0 ]; do
+    # 步骤一：如果 Retr ≤ 5，上调限速值
+    while [ "$retr" -le 5 ]; do
         bandwidth_new=$((bandwidth_new + 100))
-        echo "0重传，限速值+100Mbps"
+        echo "重传≤5，限速值+100Mbps"
 
         # 配置新的限速值
         tc class change dev $second_nic classid 1:1 htb rate ${bandwidth_new}mbit ceil ${bandwidth_new}mbit
@@ -323,16 +338,16 @@ else
 
         echo "--------------------------------------------------"
 
-        # 如果重传数超过100，进入步骤二
-        if [ "$retr" -gt 100 ]; then
+        # 如果重传数超过5，进入步骤二
+        if [ "$retr" -gt 5 ]; then
             break
         fi
     done
 
-    # 步骤二：重传大于 0 时，下调限速值
-    while [ "$retr" -gt 0 ]; do
+    # 步骤二：重传>5 时，下调限速值
+    while [ "$retr" -gt 5 ]; do
         bandwidth_new=$((bandwidth_new - 50))
-        echo "重传大于0，限速值-50Mbps"
+        echo "重传>5，限速值-50Mbps"
 
         # 配置新的限速值
         tc class change dev $second_nic classid 1:1 htb rate ${bandwidth_new}mbit ceil ${bandwidth_new}mbit
@@ -352,14 +367,13 @@ else
 
         echo "--------------------------------------------------"
 
-        # 如果重传数为0，跳出循环进入下一环节
-        if [ "$retr" -eq 0 ]; then
+        # 如果重传数≤ 5，跳出循环进入下一环节
+        if [ "$retr" -le 5 ]; then
             break
         fi
     done
 
-    # 写入 rc.local
-    echo "配置开机自启"
+    # 写入 rc.local 以实现开机自启
     echo "#!/bin/bash" > /etc/rc.local
     echo "tc qdisc add dev $second_nic root handle 1:0 htb default 10" >> /etc/rc.local
     echo "tc class add dev $second_nic parent 1:0 classid 1:1 htb rate ${bandwidth_new}mbit ceil ${bandwidth_new}mbit" >> /etc/rc.local
@@ -367,6 +381,7 @@ else
     echo "tc class add dev $second_nic parent 1:0 classid 1:2 htb rate ${bandwidth_new}mbit ceil ${bandwidth_new}mbit" >> /etc/rc.local
     echo "tc filter add dev $second_nic protocol ip parent 1:0 prio 1 u32 match ip dst 0.0.0.0/0 flowid 1:2" >> /etc/rc.local
     echo "exit 0" >> /etc/rc.local
+
     chmod +x /etc/rc.local
 
     echo "Traffic Control 配置已完成"
