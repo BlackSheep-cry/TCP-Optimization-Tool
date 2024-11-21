@@ -35,16 +35,20 @@ while true; do
 done
 echo "--------------------------------------------------"
 
-check_firewall() {
+check_firewall() { 
     if command -v nft &> /dev/null; then
-        if sudo nft list ruleset | grep -q "5201"; then
+        echo "使用 nft 查看规则..."
+        sudo nft list ruleset | grep -q 'tcp dport 5201'
+        if [ $? -eq 0 ]; then
             echo "端口 5201 已放行"
         else
             echo "端口 5201 未放行，请检查防火墙设置"
             exit 1  # 防火墙未放行，强制退出脚本
         fi
     elif command -v iptables &> /dev/null; then
-        if sudo iptables -L -n | grep -q "5201"; then
+        echo "使用 iptables 查看规则..."
+        sudo iptables -L -n | grep -q '\b5201\b'
+        if [ $? -eq 0 ]; then
             echo "端口 5201 已放行"
         else
             echo "端口 5201 未放行，请检查防火墙设置"
