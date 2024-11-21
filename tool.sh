@@ -35,30 +35,42 @@ while true; do
 done
 echo "--------------------------------------------------"
 
-check_firewall() { 
-    if command -v nft &> /dev/null; then
-        echo "使用 nft 查看规则..."
-        sudo nft list ruleset | grep -q 'tcp dport 5201'
-        if [ $? -eq 0 ]; then
-            echo "端口 5201 已放行"
-        else
-            echo "端口 5201 未放行，请检查防火墙设置"
-            exit 1  # 防火墙未放行，强制退出脚本
-        fi
-    elif command -v iptables &> /dev/null; then
-        echo "使用 iptables 查看规则..."
-        sudo iptables -L -n | grep -q '\b5201\b'
-        if [ $? -eq 0 ]; then
+# 检查 iptables 是否安装
+check_iptables_installed() {
+    if ! command -v iptables &> /dev/null; then
+        echo "iptables 未安装，跳过防火墙检查"
+        return 1  # 返回 1 表示未安装
+    fi
+    return 0  # 返回 0 表示安装了 iptables
+}
+
+# 检查防火墙设置
+check_firewall() {
+    if check_iptables_installed; then
+        if sudo iptables -L -n | grep -q "5201"; then
             echo "端口 5201 已放行"
         else
             echo "端口 5201 未放行，请检查防火墙设置"
             exit 1  # 防火墙未放行，强制退出脚本
         fi
     else
-        echo "没有找到防火墙工具，请手动检查端口 5201 是否放行"
-        exit 1
+        echo "没有安装 iptables，跳过防火墙检查"
     fi
 }
+
+# 检查端口5201是否被占用
+check_port_usage() {
+    if sudo ss -tuln | grep -q ":5201"; then
+        echo "端口 5201 已被占用，请关闭占用该端口的进程"
+        exit 1  # 端口已被占用，强制退出脚本
+    else
+        echo "端口 5201 未被占用"
+    fi
+}
+
+# 执行检查
+check_firewall
+check_port_usage
 
 
 # 检查TCP拥塞控制算法与队列管理算法
