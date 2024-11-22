@@ -141,7 +141,7 @@ if [ "$choice" -eq 1 ]; then
     echo "--------------------------------------------------"
 
     # 获取本机IP地址
-    local_ip=$(hostname -I | awk '{print $1}')
+    local_ip=$(wget -qO- http://icanhazip.com)
     echo "您的本机IP是: $local_ip"
 
     # 启动iperf3服务端
@@ -265,7 +265,7 @@ else
     tc filter add dev $second_nic protocol ip parent 1:0 prio 1 u32 match ip dst 0.0.0.0/0 flowid 1:2
 
     # 获取本机 IP
-    local_ip=$(hostname -I | awk '{print $1}')
+    local_ip=$(wget -qO- http://icanhazip.com)
     echo "本机 IP：$local_ip"
 
     # 启动 iperf3 服务端
