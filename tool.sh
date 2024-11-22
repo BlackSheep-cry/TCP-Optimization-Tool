@@ -141,9 +141,14 @@ if [ "$choice" -eq 1 ]; then
     echo "--------------------------------------------------"
 
     # 获取本机IP地址
-    local_ip=$(wget -qO- http://icanhazip.com)
-    echo "您的本机IP是: $local_ip"
+    local_ip=$(wget -qO- --inet4-only http://icanhazip.com 2>/dev/null)
 
+    if [ -z "$local_ip" ]; then
+        local_ip=$(wget -qO- http://icanhazip.com)
+    fi
+
+    echo "您的本机IP是: $local_ip"
+    
     # 启动iperf3服务端
     echo "启动iperf3服务端..."
     nohup iperf3 -s > /dev/null 2>&1 &
@@ -264,10 +269,15 @@ else
     tc class add dev $second_nic parent 1:0 classid 1:2 htb rate ${bandwidth_new}mbit ceil ${bandwidth_new}mbit
     tc filter add dev $second_nic protocol ip parent 1:0 prio 1 u32 match ip dst 0.0.0.0/0 flowid 1:2
 
-    # 获取本机 IP
-    local_ip=$(wget -qO- http://icanhazip.com)
-    echo "本机 IP：$local_ip"
+    # 获取本机IP地址
+    local_ip=$(wget -qO- --inet4-only http://icanhazip.com 2>/dev/null)
 
+    if [ -z "$local_ip" ]; then
+        local_ip=$(wget -qO- http://icanhazip.com)
+    fi
+
+    echo "您的本机IP是: $local_ip"
+    
     # 启动 iperf3 服务端
     echo "启动 iperf3 服务端..."
     nohup iperf3 -s > /dev/null 2>&1 &  # 后台运行
