@@ -21,20 +21,20 @@ echo "--------------------------------------------------"
 
 # 选择方案
 echo "请选择方案："
-echo "一. 直接调整参数"
-echo "二. 大参数+Traffic Control限速"
+echo "1. 直接调整参数"
+echo "2. 大参数+Traffic Control限速 (推荐)"
+echo "3. 调整复原"
 
 # 输入选择并检测是否有效
 while true; do
-    read -p "请输入方案  (1 或 2): " choice
-    if [[ "$choice" =~ ^[1-2]$ ]]; then
+    read -p "请输入方案编号 (1, 2 或 3): " choice
+    if [[ "$choice" =~ ^[1-3]$ ]]; then
         break
     else
-        echo "无效输入，请输入 1 或 2。"
+        echo "无效输入，请输入 1, 2 或 3。"
     fi
 done
 echo "--------------------------------------------------"
-
 
 # 检查TCP拥塞控制算法与队列管理算法
 current_cc=$(sysctl net.ipv4.tcp_congestion_control | awk '{print $3}')
@@ -51,8 +51,6 @@ if [[ "$current_qdisc" != "fq" ]]; then
     echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
     sysctl -p
 fi
-
-
 
 # 检查iperf3是否已安装
 if ! command -v iperf3 &> /dev/null; then
@@ -128,9 +126,9 @@ if [ -n "$(tail -c1 /etc/sysctl.conf)" ]; then
 fi
 
 # 执行不同方案的操作 
-if [ "$choice" -eq 1 ]; then
-    # 方案一：通过iperf3测试结果直接调整参数
-    echo "方案一：通过iperf3测试结果直接调整参数"
+case "$choice" in
+  1)
+    echo "方案一：直接调整参数"
 
     # 初始 new_value 赋值
     new_value=$bdp
@@ -148,7 +146,8 @@ if [ "$choice" -eq 1 ]; then
     fi
 
     echo "您的本机IP是: $local_ip"
-    
+
+
     # 启动iperf3服务端
     echo "启动iperf3服务端..."
     nohup iperf3 -s > /dev/null 2>&1 &
@@ -169,9 +168,9 @@ if [ "$choice" -eq 1 ]; then
         fi
     done
 
-    # 步骤一：重传≤5时，增加3MiB
-    while [ "$retr" -le 5 ]; do
-        echo "重传≤5，上调3MiB"
+    # 步骤一：重传≤100时，上调3MiB
+    while [ "$retr" -le 100 ]; do
+        echo "重传≤100，上调3MiB"
         new_value=$((new_value + 3 * 1024 * 1024))  # 每次上调3MiB
         sysctl -w net.ipv4.tcp_wmem="4096 16384 $new_value"
         sysctl -w net.ipv4.tcp_rmem="4096 87380 $new_value"
@@ -186,15 +185,15 @@ if [ "$choice" -eq 1 ]; then
             read -p "请输入Retr数: " retr
         done
 
-        # 如果重传数超过5，进入步骤二
-        if [ "$retr" -gt 5 ]; then
+        # 如果重传数超过100，进入步骤二
+        if [ "$retr" -gt 100 ]; then
             break
         fi
     done
 
-    # 步骤二：重传>5时，下调1MiB
-    while [ "$retr" -gt 5 ]; do
-        echo "重传>5，下调1MiB"
+    # 步骤二：重传>100时，下调1MiB
+    while [ "$retr" -gt 100 ]; do
+        echo "重传>100，下调1MiB"
         new_value=$((new_value - 1024 * 1024))  # 每次下调1MiB
         sysctl -w net.ipv4.tcp_wmem="4096 16384 $new_value"
         sysctl -w net.ipv4.tcp_rmem="4096 87380 $new_value"
@@ -209,8 +208,8 @@ if [ "$choice" -eq 1 ]; then
             read -p "请输入Retr数: " retr
         done
 
-        # 如果重传数≤ 5，跳出循环进入下一环节
-        if [ "$retr" -le 5 ]; then
+        # 如果重传数≤ 100，跳出循环进入下一环节
+        if [ "$retr" -le 100 ]; then
             break
         fi
     done
@@ -228,10 +227,9 @@ if [ "$choice" -eq 1 ]; then
 
     echo "--------------------------------------------------"
     echo "脚本执行完毕！"
-
-else
-    # 方案二：较大值并使用 Traffic Control 限速
-    echo "方案二：参数设置较大值并使用 Traffic Control 限速"
+    ;;
+  2)
+    echo "方案二：大参数+Traffic Control限速 (推荐)"
 
     # 修改 sysctl.conf 并应用
     echo "net.ipv4.tcp_wmem=4096 16384 67108864" >> /etc/sysctl.conf
@@ -277,7 +275,7 @@ else
     fi
 
     echo "您的本机IP是: $local_ip"
-    
+
     # 启动 iperf3 服务端
     echo "启动 iperf3 服务端..."
     nohup iperf3 -s > /dev/null 2>&1 &  # 后台运行
@@ -300,10 +298,10 @@ else
 
     echo "--------------------------------------------------"
 
-    # 步骤一：如果 Retr ≤ 5，上调限速值
-    while [ "$retr" -le 5 ]; do
+    # 步骤一：如果 Retr ≤ 100，上调限速值
+    while [ "$retr" -le 100 ]; do
         bandwidth_new=$((bandwidth_new + 100))
-        echo "重传≤5，限速值+100Mbps"
+        echo "重传≤100，限速值+100Mbps"
 
         # 配置新的限速值
         tc class change dev $second_nic classid 1:1 htb rate ${bandwidth_new}mbit ceil ${bandwidth_new}mbit
@@ -323,16 +321,16 @@ else
 
         echo "--------------------------------------------------"
 
-        # 如果重传数超过5，进入步骤二
-        if [ "$retr" -gt 5 ]; then
+        # 如果重传数超过100，进入步骤二
+        if [ "$retr" -gt 100 ]; then
             break
         fi
     done
 
-    # 步骤二：重传>5 时，下调限速值
-    while [ "$retr" -gt 5 ]; do
+    # 步骤二：重传>100 时，下调限速值
+    while [ "$retr" -gt 100 ]; do
         bandwidth_new=$((bandwidth_new - 50))
-        echo "重传>5，限速值-50Mbps"
+        echo "重传>100，限速值-50Mbps"
 
         # 配置新的限速值
         tc class change dev $second_nic classid 1:1 htb rate ${bandwidth_new}mbit ceil ${bandwidth_new}mbit
@@ -352,8 +350,8 @@ else
 
         echo "--------------------------------------------------"
 
-        # 如果重传数≤ 5，跳出循环进入下一环节
-        if [ "$retr" -le 5 ]; then
+        # 如果重传数≤ 100，跳出循环进入下一环节
+        if [ "$retr" -le 100 ]; then
             break
         fi
     done
@@ -377,4 +375,50 @@ else
     echo "iperf3 服务端进程已停止"
     echo "--------------------------------------------------"
     echo "脚本执行完毕！"
-fi
+    ;;
+  3)
+    echo "调整复原"
+
+    # 清除 sysctl.conf 中的 net.ipv4.tcp_wmem 和 net.ipv4.tcp_rmem 设置
+    sed -i '/net\.ipv4\.tcp_wmem/d' /etc/sysctl.conf
+    sed -i '/net\.ipv4\.tcp_rmem/d' /etc/sysctl.conf
+    echo "已从 /etc/sysctl.conf 中移除 net.ipv4.tcp_wmem 和 net.ipv4.tcp_rmem 设置。"
+
+    # 设置默认值
+    sysctl -w net.ipv4.tcp_wmem="4096 16384 4194304"
+    sysctl -w net.ipv4.tcp_rmem="4096 87380 6291456"
+    echo "已将 net.ipv4.tcp_wmem 和 net.ipv4.tcp_rmem 重置为默认值。"
+
+    # 清除 /etc/rc.local 中的所有内容
+    if [ -f /etc/rc.local ]; then
+      > /etc/rc.local
+      echo "#!/bin/bash" > /etc/rc.local
+      chmod +x /etc/rc.local
+      echo "已清空 /etc/rc.local 并添加基本脚本头部。"
+    else
+      echo "/etc/rc.local 文件不存在，无需清理。"
+    fi
+
+    # 用户输入网卡名称
+    while true; do
+      read -p "请输入网卡名称（被限速的网卡）： " iface
+      if ip link show "$iface" &>/dev/null; then
+        break
+      else
+        echo "网卡名称无效或不存在，请重新输入。"
+      fi
+    done
+
+    # 删除 tc 限速
+    if command -v tc &> /dev/null; then
+      tc qdisc del dev "$iface" root 2>/dev/null
+      tc qdisc del dev "$iface" ingress 2>/dev/null
+      echo "已尝试清除网卡 $iface 的 tc 限速规则。"
+    else
+      echo "tc 命令不可用，未执行限速清理。"
+    fi
+
+    echo "--------------------------------------------------"
+    echo "复原已完成"
+    ;;
+esac
