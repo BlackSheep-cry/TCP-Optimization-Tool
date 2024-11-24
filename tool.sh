@@ -216,7 +216,7 @@ case "$choice" in
 
     # 最终下调0.5MiB并写入sysctl.conf
     new_value_final=$((new_value - 512 * 1024))  # 下调0.5MiB
-    echo "再次0重传，下调0.5MiB，最终参数值：$new_value_final 字节"
+    echo "重传再次≤100，下调0.5MiB，最终参数值：$new_value_final 字节"
     echo "net.ipv4.tcp_wmem=4096 16384 $new_value_final" >> /etc/sysctl.conf
     echo "net.ipv4.tcp_rmem=4096 87380 $new_value_final" >> /etc/sysctl.conf
     sysctl -p
