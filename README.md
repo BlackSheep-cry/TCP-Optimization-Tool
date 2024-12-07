@@ -3,7 +3,9 @@
 ## 简介
 一个半自动化的TCP调优工具，根据iperf3的测试结果进行动态调优
 
-更多技术细节及更新日志请移步原帖：https://www.nodeseek.com/post-197087-1
+技术细节请移步：https://www.nodeseek.com/post-197087-1
+
+更新日志请移步：https://www.nodeseek.com/post-200517-1
 
 ## 快速使用
 
