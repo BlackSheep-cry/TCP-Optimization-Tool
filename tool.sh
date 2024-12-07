@@ -12,7 +12,7 @@ echo "请阅读以下注意事项："
 echo "1. 此脚本的TCP调优操作对劣质线路无效"
 echo "2. 小带宽用户默认参数基本就跑满了，无需进行调优"
 echo "3. 调参消耗流量较多，请慎重调整"
-echo "4. 请在执行该脚本前放行5201端口"
+echo "4. 请在执行该脚本前放行相应端口(你输入的端口)"
 echo "5. 请先在客户端安装iperf3，不会安装/使用的请查看原贴"
 echo "6. 请在晚高峰使用该脚本"
 echo "--------------------------------------------------"
@@ -147,14 +147,41 @@ case "$choice" in
 
     echo "您的本机IP是: $local_ip"
 
+    # 提示用户输入 iperf3 使用的端口号
+    while true; do
+        read -p "请输入用于 iperf3 的端口号（默认 5201，范围 1-65535）：" iperf_port
+        iperf_port=${iperf_port:-5201}  # 如果用户未输入，则使用默认端口 5201
 
-    # 启动iperf3服务端
-    echo "启动iperf3服务端..."
-    nohup iperf3 -s > /dev/null 2>&1 &
+        # 检查端口号是否为有效数字且在范围内
+        if [[ "$iperf_port" =~ ^[0-9]+$ ]] && [ "$iperf_port" -ge 1 ] && [ "$iperf_port" -le 65535 ]; then
+            # 检测端口是否被占用
+            occupied_pid=$(lsof -i :$iperf_port -t)
+            if [ -n "$occupied_pid" ]; then
+                echo "警告：端口 $iperf_port 已被占用！进程 ID：$occupied_pid"
+                read -p "是否杀死占用端口 $iperf_port 的进程？(y/n): " choice
+                if [ "$choice" = "y" ] || [ "$choice" = "Y" ]; then
+                    kill -9 $occupied_pid
+                    echo "已杀死占用端口 $iperf_port 的进程。"
+                    break
+                else
+                    echo "用户选择不杀死进程。请重新输入有效的端口号。"
+                fi
+            else
+                echo "端口 $iperf_port 未被占用，继续执行下一步。"
+                break
+            fi
+        else
+            echo "无效的端口号！请输入 1 到 65535 范围内的数字。"
+        fi
+    done
 
-    # 提示执行iperf3命令
-    echo "请在客户端执行以下命令来测试："
-    echo "iperf3 -c $local_ip -R -t 30"
+    # 启动 iperf3 服务端
+    echo "启动 iperf3 服务端，端口：$iperf_port..."
+    nohup iperf3 -s -p $iperf_port > /dev/null 2>&1 &  # 使用指定端口启动 iperf3 服务
+    iperf3_pid=$!
+    echo "iperf3 服务端启动，进程 ID：$iperf3_pid"
+    echo "请在客户端执行以下命令测试："
+    echo "iperf3 -c $local_ip -R -t 30 -p $iperf_port"
     echo "--------------------------------------------------"
 
     # 获取用户输入的Retr数值，并确保输入有效
@@ -175,7 +202,7 @@ case "$choice" in
         sysctl -w net.ipv4.tcp_wmem="4096 16384 $new_value"
         sysctl -w net.ipv4.tcp_rmem="4096 87380 $new_value"
         echo "请执行以下命令进行iperf3测试："
-        echo "iperf3 -c $local_ip -R -t 30"
+        echo "iperf3 -c $local_ip -R -t 30 -p $iperf_port"
         read -p "请输入Retr数: " retr
         echo "--------------------------------------------------"
         
@@ -198,7 +225,7 @@ case "$choice" in
         sysctl -w net.ipv4.tcp_wmem="4096 16384 $new_value"
         sysctl -w net.ipv4.tcp_rmem="4096 87380 $new_value"
         echo "请执行以下命令进行iperf3测试："
-        echo "iperf3 -c $local_ip -R -t 30"
+        echo "iperf3 -c $local_ip -R -t 30 -p $iperf_port"
         read -p "请输入Retr数: " retr
         echo "--------------------------------------------------"
 
@@ -276,14 +303,42 @@ case "$choice" in
 
     echo "您的本机IP是: $local_ip"
 
+    # 提示用户输入 iperf3 使用的端口号
+    while true; do
+        read -p "请输入用于 iperf3 的端口号（默认 5201，范围 1-65535）：" iperf_port
+        iperf_port=${iperf_port:-5201}  # 如果用户未输入，则使用默认端口 5201
+
+        # 检查端口号是否为有效数字且在范围内
+        if [[ "$iperf_port" =~ ^[0-9]+$ ]] && [ "$iperf_port" -ge 1 ] && [ "$iperf_port" -le 65535 ]; then
+            # 检测端口是否被占用
+            occupied_pid=$(lsof -i :$iperf_port -t)
+            if [ -n "$occupied_pid" ]; then
+                echo "警告：端口 $iperf_port 已被占用！进程 ID：$occupied_pid"
+                read -p "是否杀死占用端口 $iperf_port 的进程？(y/n): " choice
+                if [ "$choice" = "y" ] || [ "$choice" = "Y" ]; then
+                    kill -9 $occupied_pid
+                    echo "已杀死占用端口 $iperf_port 的进程。"
+                    break
+                else
+                    echo "用户选择不杀死进程。请重新输入有效的端口号。"
+                fi
+            else
+                echo "端口 $iperf_port 未被占用，继续执行下一步。"
+                break
+            fi
+        else
+            echo "无效的端口号！请输入 1 到 65535 范围内的数字。"
+        fi
+    done
+
     # 启动 iperf3 服务端
-    echo "启动 iperf3 服务端..."
-    nohup iperf3 -s > /dev/null 2>&1 &  # 后台运行
+    echo "启动 iperf3 服务端，端口：$iperf_port..."
+    nohup iperf3 -s -p $iperf_port > /dev/null 2>&1 &  # 使用指定端口启动 iperf3 服务
     iperf3_pid=$!
     echo "iperf3 服务端启动，进程 ID：$iperf3_pid"
     echo "请在客户端执行以下命令测试："
-    echo "iperf3 -c $local_ip -R -t 30"
-    read -p "测试完成后，请按 Enter 键继续..."
+    echo "iperf3 -c $local_ip -R -t 30 -p $iperf_port"
+    echo "--------------------------------------------------"
 
     # 获取用户输入的Retr数值，并确保输入有效
     while true; do
