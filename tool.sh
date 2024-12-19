@@ -146,34 +146,92 @@ case "$choice" in
     fi
 
     echo "您的本机IP是: $local_ip"
+    echo "--------------------------------------------------"
 
-    # 提示用户输入 iperf3 使用的端口号
-    while true; do
-        read -p "请输入用于 iperf3 的端口号（默认 5201，范围 1-65535）：" iperf_port
-        iperf_port=${iperf_port:-5201}  # 如果用户未输入，则使用默认端口 5201
+    # 检查 lsof 是否安装
+    if ! command -v lsof &>/dev/null; then
+        echo "警告：lsof 未安装！"
+        echo "lsof 用于检测端口占用情况，如果不安装，脚本将无法检测端口是否被占用，可能会导致测速无法正常进行。"
+        while true; do
+            read -p "是否现在安装 lsof？(yes/no): " choice
+            case "${choice,,}" in  # 将输入转为小写
+                y|yes)
+                    echo "正在尝试安装 lsof..."
+                    if command -v apt &>/dev/null; then
+                        sudo apt update && sudo apt install -y lsof
+                    elif command -v yum &>/dev/null; then
+                        sudo yum install -y lsof
+                    elif command -v pacman &>/dev/null; then
+                        sudo pacman -Sy lsof
+                    else
+                        echo "错误：无法检测到支持的包管理器。请手动安装 lsof 后重新运行脚本。"
+                        exit 1
+                    fi
 
-        # 检查端口号是否为有效数字且在范围内
-        if [[ "$iperf_port" =~ ^[0-9]+$ ]] && [ "$iperf_port" -ge 1 ] && [ "$iperf_port" -le 65535 ]; then
-            # 检测端口是否被占用
-            occupied_pid=$(lsof -i :$iperf_port -t)
-            if [ -n "$occupied_pid" ]; then
-                echo "警告：端口 $iperf_port 已被占用！进程 ID：$occupied_pid"
-                read -p "是否杀死占用端口 $iperf_port 的进程？(y/n): " choice
-                if [ "$choice" = "y" ] || [ "$choice" = "Y" ]; then
-                    kill -9 $occupied_pid
-                    echo "已杀死占用端口 $iperf_port 的进程。"
+                    # 检查安装结果
+                    if ! command -v lsof &>/dev/null; then
+                        echo "错误：安装 lsof 失败，请手动安装后再试。"
+                        exit 1
+                    fi
+                    echo "lsof 安装成功！"
                     break
+                    ;;
+                n|no)
+                    echo "用户选择不安装 lsof，继续执行脚本。"
+                    break
+                    ;;
+                *)
+                    echo "无效输入，请输入 yes 或 no。"
+                    ;;
+            esac
+        done
+    fi
+    echo "--------------------------------------------------"
+
+    while true; do
+        # 提示用户输入端口号
+        read -p "请输入用于 iperf3 的端口号（默认 5201，范围 1-65535）： " iperf_port
+        iperf_port=${iperf_port// /}  # 去掉用户输入中的空格
+        iperf_port=${iperf_port:-5201}  # 如果用户未输入，则使用默认值
+
+        # 检查端口号是否有效
+        if [[ "$iperf_port" =~ ^[0-9]+$ ]] && [ "$iperf_port" -ge 1 ] && [ "$iperf_port" -le 65535 ]; then
+            if command -v lsof &>/dev/null; then
+                # 检查端口是否被占用
+                occupied_pid=$(lsof -i :$iperf_port -t)
+                if [ -n "$occupied_pid" ]; then
+                    echo "警告：端口 $iperf_port 已被占用！进程 ID：$occupied_pid"
+                    while true; do
+                        read -p "是否杀死占用端口 $iperf_port 的进程？(yes/no): " choice
+                        case "${choice,,}" in
+                            y|yes)
+                                kill -9 $occupied_pid
+                                echo "已杀死占用端口 $iperf_port 的进程。"
+                                break 2
+                                ;;
+                            n|no)
+                                echo "用户选择不杀死进程。请重新输入有效的端口号。"
+                                break
+                                ;;
+                            *)
+                                echo "无效输入，请输入 yes 或 no。"
+                                ;;
+                        esac
+                    done
                 else
-                    echo "用户选择不杀死进程。请重新输入有效的端口号。"
+                    echo "端口 $iperf_port 未被占用，继续执行下一步。"
+                    break
                 fi
             else
-                echo "端口 $iperf_port 未被占用，继续执行下一步。"
+                echo "无法检测端口占用情况，因为 lsof 未安装。"
+                echo "假定端口 $iperf_port 未被占用，继续执行下一步。"
                 break
             fi
         else
             echo "无效的端口号！请输入 1 到 65535 范围内的数字。"
         fi
     done
+    echo "--------------------------------------------------"
 
     # 启动 iperf3 服务端
     echo "启动 iperf3 服务端，端口：$iperf_port..."
@@ -302,34 +360,92 @@ case "$choice" in
     fi
 
     echo "您的本机IP是: $local_ip"
+    echo "--------------------------------------------------"
 
-    # 提示用户输入 iperf3 使用的端口号
-    while true; do
-        read -p "请输入用于 iperf3 的端口号（默认 5201，范围 1-65535）：" iperf_port
-        iperf_port=${iperf_port:-5201}  # 如果用户未输入，则使用默认端口 5201
+    # 检查 lsof 是否安装
+    if ! command -v lsof &>/dev/null; then
+        echo "警告：lsof 未安装！"
+        echo "lsof 用于检测端口占用情况，如果不安装，脚本将无法检测端口是否被占用，可能会导致测速无法正常进行。"
+        while true; do
+            read -p "是否现在安装 lsof？(yes/no): " choice
+            case "${choice,,}" in  # 将输入转为小写
+                y|yes)
+                    echo "正在尝试安装 lsof..."
+                    if command -v apt &>/dev/null; then
+                        sudo apt update && sudo apt install -y lsof
+                    elif command -v yum &>/dev/null; then
+                        sudo yum install -y lsof
+                    elif command -v pacman &>/dev/null; then
+                        sudo pacman -Sy lsof
+                    else
+                        echo "错误：无法检测到支持的包管理器。请手动安装 lsof 后重新运行脚本。"
+                        exit 1
+                    fi
 
-        # 检查端口号是否为有效数字且在范围内
-        if [[ "$iperf_port" =~ ^[0-9]+$ ]] && [ "$iperf_port" -ge 1 ] && [ "$iperf_port" -le 65535 ]; then
-            # 检测端口是否被占用
-            occupied_pid=$(lsof -i :$iperf_port -t)
-            if [ -n "$occupied_pid" ]; then
-                echo "警告：端口 $iperf_port 已被占用！进程 ID：$occupied_pid"
-                read -p "是否杀死占用端口 $iperf_port 的进程？(y/n): " choice
-                if [ "$choice" = "y" ] || [ "$choice" = "Y" ]; then
-                    kill -9 $occupied_pid
-                    echo "已杀死占用端口 $iperf_port 的进程。"
+                    # 检查安装结果
+                    if ! command -v lsof &>/dev/null; then
+                        echo "错误：安装 lsof 失败，请手动安装后再试。"
+                        exit 1
+                    fi
+                    echo "lsof 安装成功！"
                     break
+                    ;;
+                n|no)
+                    echo "用户选择不安装 lsof，继续执行脚本。"
+                    break
+                    ;;
+                *)
+                    echo "无效输入，请输入 yes 或 no。"
+                    ;;
+            esac
+        done
+    fi
+    echo "--------------------------------------------------"
+
+    while true; do
+        # 提示用户输入端口号
+        read -p "请输入用于 iperf3 的端口号（默认 5201，范围 1-65535）： " iperf_port
+        iperf_port=${iperf_port// /}  # 去掉用户输入中的空格
+        iperf_port=${iperf_port:-5201}  # 如果用户未输入，则使用默认值
+
+        # 检查端口号是否有效
+        if [[ "$iperf_port" =~ ^[0-9]+$ ]] && [ "$iperf_port" -ge 1 ] && [ "$iperf_port" -le 65535 ]; then
+            if command -v lsof &>/dev/null; then
+                # 检查端口是否被占用
+                occupied_pid=$(lsof -i :$iperf_port -t)
+                if [ -n "$occupied_pid" ]; then
+                    echo "警告：端口 $iperf_port 已被占用！进程 ID：$occupied_pid"
+                    while true; do
+                        read -p "是否杀死占用端口 $iperf_port 的进程？(yes/no): " choice
+                        case "${choice,,}" in
+                            y|yes)
+                                kill -9 $occupied_pid
+                                echo "已杀死占用端口 $iperf_port 的进程。"
+                                break 2
+                                ;;
+                            n|no)
+                                echo "用户选择不杀死进程。请重新输入有效的端口号。"
+                                break
+                                ;;
+                            *)
+                                echo "无效输入，请输入 yes 或 no。"
+                                ;;
+                        esac
+                    done
                 else
-                    echo "用户选择不杀死进程。请重新输入有效的端口号。"
+                    echo "端口 $iperf_port 未被占用，继续执行下一步。"
+                    break
                 fi
             else
-                echo "端口 $iperf_port 未被占用，继续执行下一步。"
+                echo "无法检测端口占用情况，因为 lsof 未安装。"
+                echo "假定端口 $iperf_port 未被占用，继续执行下一步。"
                 break
             fi
         else
             echo "无效的端口号！请输入 1 到 65535 范围内的数字。"
         fi
     done
+    echo "--------------------------------------------------"
 
     # 启动 iperf3 服务端
     echo "启动 iperf3 服务端，端口：$iperf_port..."
