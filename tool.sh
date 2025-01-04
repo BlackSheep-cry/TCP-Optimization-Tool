@@ -1,18 +1,12 @@
 #!/bin/bash   
 
-# 检查是否以 root 用户运行
-if [ "$(id -u)" -ne 0 ]; then
-  echo "错误：此脚本需要 root 权限。请使用 root 用户或通过 sudo 运行此脚本。"
-  exit 1
-fi
-
 # 提示使用者
 echo "--------------------------------------------------"
 echo "请阅读以下注意事项："
 echo "1. 此脚本的TCP调优操作对劣质线路无效"
 echo "2. 小带宽用户默认参数基本就跑满了，无需进行调优"
 echo "3. 调参消耗流量较多，请慎重调整"
-echo "4. 请在执行该脚本前放行相应端口(你输入的端口)"
+echo "4. 请在执行该脚本前放行相应端口"
 echo "5. 请先在客户端安装iperf3，不会安装/使用的请查看原贴"
 echo "6. 请在晚高峰使用该脚本"
 echo "--------------------------------------------------"
@@ -22,16 +16,17 @@ echo "--------------------------------------------------"
 # 选择方案
 echo "请选择方案："
 echo "1. 直接调整参数"
-echo "2. 大参数+Traffic Control限速 (推荐)"
+echo "2. 大参数+Traffic Control限速"
 echo "3. 调整复原"
+echo "4. 自由调整(推荐)"
 
 # 输入选择并检测是否有效
 while true; do
-    read -p "请输入方案编号 (1, 2 或 3): " choice
-    if [[ "$choice" =~ ^[1-3]$ ]]; then
+    read -p "请输入方案编号 (1, 2, 3 或 4): " choice
+    if [[ "$choice" =~ ^[1-4]$ ]]; then
         break
     else
-        echo "无效输入，请输入 1, 2 或 3。"
+        echo "无效输入，请输入 1, 2, 3 或 4。"
     fi
 done
 echo "--------------------------------------------------"
@@ -70,8 +65,6 @@ echo "当前TCP缓冲区参数大小如下："
 sysctl net.ipv4.tcp_wmem
 sysctl net.ipv4.tcp_rmem
 echo "--------------------------------------------------"
-
-#!/bin/bash
 
 # 获取用户输入的带宽和延迟，并确保输入有效
 while true; do
@@ -148,46 +141,6 @@ case "$choice" in
     echo "您的本机IP是: $local_ip"
     echo "--------------------------------------------------"
 
-    # 检查 lsof 是否安装
-    if ! command -v lsof &>/dev/null; then
-        echo "警告：lsof 未安装！"
-        echo "lsof 用于检测端口占用情况，如果不安装，脚本将无法检测端口是否被占用，可能会导致测速无法正常进行。"
-        while true; do
-            read -p "是否现在安装 lsof？(yes/no): " choice
-            case "${choice,,}" in  # 将输入转为小写
-                y|yes)
-                    echo "正在尝试安装 lsof..."
-                    if command -v apt &>/dev/null; then
-                        sudo apt update && sudo apt install -y lsof
-                    elif command -v yum &>/dev/null; then
-                        sudo yum install -y lsof
-                    elif command -v pacman &>/dev/null; then
-                        sudo pacman -Sy lsof
-                    else
-                        echo "错误：无法检测到支持的包管理器。请手动安装 lsof 后重新运行脚本。"
-                        exit 1
-                    fi
-
-                    # 检查安装结果
-                    if ! command -v lsof &>/dev/null; then
-                        echo "错误：安装 lsof 失败，请手动安装后再试。"
-                        exit 1
-                    fi
-                    echo "lsof 安装成功！"
-                    break
-                    ;;
-                n|no)
-                    echo "用户选择不安装 lsof，继续执行脚本。"
-                    break
-                    ;;
-                *)
-                    echo "无效输入，请输入 yes 或 no。"
-                    ;;
-            esac
-        done
-    fi
-    echo "--------------------------------------------------"
-
     while true; do
         # 提示用户输入端口号
         read -p "请输入用于 iperf3 的端口号（默认 5201，范围 1-65535）： " iperf_port
@@ -196,37 +149,8 @@ case "$choice" in
 
         # 检查端口号是否有效
         if [[ "$iperf_port" =~ ^[0-9]+$ ]] && [ "$iperf_port" -ge 1 ] && [ "$iperf_port" -le 65535 ]; then
-            if command -v lsof &>/dev/null; then
-                # 检查端口是否被占用
-                occupied_pid=$(lsof -i :$iperf_port -t)
-                if [ -n "$occupied_pid" ]; then
-                    echo "警告：端口 $iperf_port 已被占用！进程 ID：$occupied_pid"
-                    while true; do
-                        read -p "是否杀死占用端口 $iperf_port 的进程？(yes/no): " choice
-                        case "${choice,,}" in
-                            y|yes)
-                                kill -9 $occupied_pid
-                                echo "已杀死占用端口 $iperf_port 的进程。"
-                                break 2
-                                ;;
-                            n|no)
-                                echo "用户选择不杀死进程。请重新输入有效的端口号。"
-                                break
-                                ;;
-                            *)
-                                echo "无效输入，请输入 yes 或 no。"
-                                ;;
-                        esac
-                    done
-                else
-                    echo "端口 $iperf_port 未被占用，继续执行下一步。"
-                    break
-                fi
-            else
-                echo "无法检测端口占用情况，因为 lsof 未安装。"
-                echo "假定端口 $iperf_port 未被占用，继续执行下一步。"
-                break
-            fi
+            echo "端口 $iperf_port 有效，继续执行下一步。"
+            break
         else
             echo "无效的端口号！请输入 1 到 65535 范围内的数字。"
         fi
@@ -299,11 +223,9 @@ case "$choice" in
         fi
     done
 
-    # 最终下调0.5MiB并写入sysctl.conf
-    new_value_final=$((new_value - 512 * 1024))  # 下调0.5MiB
-    echo "重传再次≤100，下调0.5MiB，最终参数值：$new_value_final 字节"
-    echo "net.ipv4.tcp_wmem=4096 16384 $new_value_final" >> /etc/sysctl.conf
-    echo "net.ipv4.tcp_rmem=4096 87380 $new_value_final" >> /etc/sysctl.conf
+    # 写入sysctl.conf
+    echo "net.ipv4.tcp_wmem=4096 16384 $new_value" >> /etc/sysctl.conf
+    echo "net.ipv4.tcp_rmem=4096 87380 $new_value" >> /etc/sysctl.conf
     sysctl -p
 
     # 停止iperf3服务端进程
@@ -362,46 +284,6 @@ case "$choice" in
     echo "您的本机IP是: $local_ip"
     echo "--------------------------------------------------"
 
-    # 检查 lsof 是否安装
-    if ! command -v lsof &>/dev/null; then
-        echo "警告：lsof 未安装！"
-        echo "lsof 用于检测端口占用情况，如果不安装，脚本将无法检测端口是否被占用，可能会导致测速无法正常进行。"
-        while true; do
-            read -p "是否现在安装 lsof？(yes/no): " choice
-            case "${choice,,}" in  # 将输入转为小写
-                y|yes)
-                    echo "正在尝试安装 lsof..."
-                    if command -v apt &>/dev/null; then
-                        sudo apt update && sudo apt install -y lsof
-                    elif command -v yum &>/dev/null; then
-                        sudo yum install -y lsof
-                    elif command -v pacman &>/dev/null; then
-                        sudo pacman -Sy lsof
-                    else
-                        echo "错误：无法检测到支持的包管理器。请手动安装 lsof 后重新运行脚本。"
-                        exit 1
-                    fi
-
-                    # 检查安装结果
-                    if ! command -v lsof &>/dev/null; then
-                        echo "错误：安装 lsof 失败，请手动安装后再试。"
-                        exit 1
-                    fi
-                    echo "lsof 安装成功！"
-                    break
-                    ;;
-                n|no)
-                    echo "用户选择不安装 lsof，继续执行脚本。"
-                    break
-                    ;;
-                *)
-                    echo "无效输入，请输入 yes 或 no。"
-                    ;;
-            esac
-        done
-    fi
-    echo "--------------------------------------------------"
-
     while true; do
         # 提示用户输入端口号
         read -p "请输入用于 iperf3 的端口号（默认 5201，范围 1-65535）： " iperf_port
@@ -410,37 +292,8 @@ case "$choice" in
 
         # 检查端口号是否有效
         if [[ "$iperf_port" =~ ^[0-9]+$ ]] && [ "$iperf_port" -ge 1 ] && [ "$iperf_port" -le 65535 ]; then
-            if command -v lsof &>/dev/null; then
-                # 检查端口是否被占用
-                occupied_pid=$(lsof -i :$iperf_port -t)
-                if [ -n "$occupied_pid" ]; then
-                    echo "警告：端口 $iperf_port 已被占用！进程 ID：$occupied_pid"
-                    while true; do
-                        read -p "是否杀死占用端口 $iperf_port 的进程？(yes/no): " choice
-                        case "${choice,,}" in
-                            y|yes)
-                                kill -9 $occupied_pid
-                                echo "已杀死占用端口 $iperf_port 的进程。"
-                                break 2
-                                ;;
-                            n|no)
-                                echo "用户选择不杀死进程。请重新输入有效的端口号。"
-                                break
-                                ;;
-                            *)
-                                echo "无效输入，请输入 yes 或 no。"
-                                ;;
-                        esac
-                    done
-                else
-                    echo "端口 $iperf_port 未被占用，继续执行下一步。"
-                    break
-                fi
-            else
-                echo "无法检测端口占用情况，因为 lsof 未安装。"
-                echo "假定端口 $iperf_port 未被占用，继续执行下一步。"
-                break
-            fi
+            echo "端口 $iperf_port 有效，继续执行下一步。"
+            break
         else
             echo "无效的端口号！请输入 1 到 65535 范围内的数字。"
         fi
@@ -571,8 +424,10 @@ case "$choice" in
     fi
 
     # 用户输入网卡名称
+    echo "当前网卡列表："
+    ip link show
     while true; do
-      read -p "请输入网卡名称（被限速的网卡）： " iface
+      read -p "请根据以上列表输入被限速的网卡名称： " iface
       if ip link show "$iface" &>/dev/null; then
         break
       else
@@ -591,5 +446,183 @@ case "$choice" in
 
     echo "--------------------------------------------------"
     echo "复原已完成"
+    ;;
+  4)
+    while true; do
+        echo "方案四：自由调整"
+        echo "请选择操作："
+        echo "1. 后台启动iperf3"
+        echo "2. 增减TCP缓冲区参数"
+        echo "3. 设置TC限速值"
+        echo "4. TCP缓冲区参数max值设为BDP"
+        echo "5. TCP缓冲区参数max值设为32MiB"
+        echo "6. TCP缓冲区参数max值设为64MiB"
+
+        echo "7. 结束iperf3进程并退出"
+        echo "--------------------------------------------------"
+
+        # 获取用户选择
+        while true; do
+            read -p "请输入操作编号 (1-7): " sub_choice
+            if [[ "$sub_choice" =~ ^[1-7]$ ]]; then
+                break
+            else
+                echo "无效输入，请输入1-7之间的数字！"
+            fi
+        done
+        echo "--------------------------------------------------"
+
+        case "$sub_choice" in
+            1)
+                # 获取本机IP地址
+                local_ip=$(wget -qO- --inet4-only http://icanhazip.com 2>/dev/null)
+
+                if [ -z "$local_ip" ]; then
+                    local_ip=$(wget -qO- http://icanhazip.com)
+                fi
+
+                echo "您的本机IP是: $local_ip"
+                echo "--------------------------------------------------"
+
+                while true; do
+                    # 提示用户输入端口号
+                    read -p "请输入用于 iperf3 的端口号（默认 5201，范围 1-65535）： " iperf_port
+                    iperf_port=${iperf_port// /}  # 去掉用户输入中的空格
+                    iperf_port=${iperf_port:-5201}  # 如果用户未输入，则使用默认值
+
+                    # 检查端口号是否有效
+                    if [[ "$iperf_port" =~ ^[0-9]+$ ]] && [ "$iperf_port" -ge 1 ] && [ "$iperf_port" -le 65535 ]; then
+                        echo "端口 $iperf_port 有效，继续执行下一步。"
+                        break
+                    else
+                        echo "无效的端口号！请输入 1 到 65535 范围内的数字。"
+                    fi
+                done
+                echo "--------------------------------------------------"
+
+                # 启动 iperf3 服务端
+                echo "启动 iperf3 服务端，端口：$iperf_port..."
+                nohup iperf3 -s -p $iperf_port > /dev/null 2>&1 &  # 使用指定端口启动 iperf3 服务
+                iperf3_pid=$!
+                echo "iperf3 服务端启动，进程 ID：$iperf3_pid"
+                echo "可在客户端使用以下命令测试："
+                echo "iperf3 -c $local_ip -R -t 30 -p $iperf_port"
+                ;;
+            2)
+                # 显示当前值
+                current_wmem=$(sysctl net.ipv4.tcp_wmem | awk '{print $NF}')
+                echo "当前TCP写缓冲区max值：$current_wmem bytes"
+                
+                # 获取调整值
+                while true; do
+                    read -p "请输入要增加或减少的值(MiB，使用正数增加，负数减少): " adjust_value
+                    if [[ "$adjust_value" =~ ^-?[0-9]+$ ]]; then
+                        break
+                    else
+                        echo "无效输入，请输入一个整数。"
+                    fi
+                done
+                
+                # 计算新值
+                new_value=$((current_wmem + adjust_value * 1024 * 1024))
+                if [ $new_value -lt 4096 ]; then
+                    echo "错误：新值小于最小允许值4096，操作取消"
+                    continue
+                fi
+                
+                # 应用新值
+                echo "设置新的TCP缓冲区参数max值: $new_value bytes"
+                sed -i '/^net\.ipv4\.tcp_wmem/d' /etc/sysctl.conf
+                sed -i '/^net\.ipv4\.tcp_rmem/d' /etc/sysctl.conf
+                echo "net.ipv4.tcp_wmem=4096 16384 $new_value" >> /etc/sysctl.conf
+                echo "net.ipv4.tcp_rmem=4096 87380 $new_value" >> /etc/sysctl.conf
+                sysctl -p
+                ;;
+            3)
+                # 显示网卡列表
+                echo "当前网卡列表："
+                ip link show
+                read -p "请输入要限制的网卡名称: " nic_name
+                
+                # 验证网卡是否存在
+                if ! ip link show "$nic_name" &>/dev/null; then
+                    echo "错误：网卡 $nic_name 不存在"
+                    continue
+                fi
+                
+               # 让用户输入新的限速值
+                while true; do
+                    read -p "请输入新的限速值(Mbps): " new_rate
+                    if [[ "$new_rate" =~ ^[0-9]+$ ]] && [ "$new_rate" -gt 0 ]; then
+                        break
+                    else
+                        echo "无效输入，请输入一个大于0的整数值。"
+                    fi
+                done
+
+                # 应用新的限速值
+                echo "设置新的限速值: ${new_rate}Mbps"
+                tc qdisc del dev "$nic_name" root 2>/dev/null
+                tc qdisc add dev "$nic_name" root handle 1:0 htb default 10
+                tc class add dev "$nic_name" parent 1:0 classid 1:1 htb rate ${new_rate}mbit ceil ${new_rate}mbit
+                tc filter add dev "$nic_name" protocol ip parent 1:0 prio 1 u32 match ip src 0.0.0.0/0 flowid 1:1
+                tc class add dev "$nic_name" parent 1:0 classid 1:2 htb rate ${new_rate}mbit ceil ${new_rate}mbit
+                tc filter add dev "$nic_name" protocol ip parent 1:0 prio 1 u32 match ip dst 0.0.0.0/0 flowid 1:2
+
+                # 写入rc.local
+                echo "" | sudo tee /etc/rc.local > /dev/null
+                echo "#!/bin/bash" > /etc/rc.local
+                echo "tc qdisc add dev $nic_name root handle 1:0 htb default 10" >> /etc/rc.local
+                echo "tc class add dev $nic_name parent 1:0 classid 1:1 htb rate ${new_rate}mbit ceil ${new_rate}mbit" >> /etc/rc.local
+                echo "tc filter add dev $nic_name protocol ip parent 1:0 prio 1 u32 match ip src 0.0.0.0/0 flowid 1:1" >> /etc/rc.local
+                echo "tc class add dev $nic_name parent 1:0 classid 1:2 htb rate ${new_rate}mbit ceil ${new_rate}mbit" >> /etc/rc.local
+                echo "tc filter add dev $nic_name protocol ip parent 1:0 prio 1 u32 match ip dst 0.0.0.0/0 flowid 1:2" >> /etc/rc.local
+                echo "exit 0" >> /etc/rc.local
+
+                chmod +x /etc/rc.local
+                ;;
+            4)
+               # 设置TCP缓冲区参数max值为BDP
+                echo "设置TCP缓冲区参数max值为BDP值: $bdp bytes"
+                sed -i '/^net\.ipv4\.tcp_wmem/d' /etc/sysctl.conf
+                sed -i '/^net\.ipv4\.tcp_rmem/d' /etc/sysctl.conf
+                echo "net.ipv4.tcp_wmem=4096 16384 $bdp" >> /etc/sysctl.conf
+                echo "net.ipv4.tcp_rmem=4096 87380 $bdp" >> /etc/sysctl.conf
+                sysctl -p
+                ;;
+            5)
+                # 设置为32MiB
+                value=$((32 * 1024 * 1024))
+                echo "设置TCP缓冲区参数max值为32MiB: $value bytes"
+                sed -i '/^net\.ipv4\.tcp_wmem/d' /etc/sysctl.conf
+                sed -i '/^net\.ipv4\.tcp_rmem/d' /etc/sysctl.conf
+                echo "net.ipv4.tcp_wmem=4096 16384 $value" >> /etc/sysctl.conf
+                echo "net.ipv4.tcp_rmem=4096 87380 $value" >> /etc/sysctl.conf
+                sysctl -p
+                ;;
+            6)
+                # 设置为64MiB
+                value=$((64 * 1024 * 1024))
+                echo "设置TCP缓冲区参数max值为64MiB: $value bytes"
+                sed -i '/^net\.ipv4\.tcp_wmem/d' /etc/sysctl.conf
+                sed -i '/^net\.ipv4\.tcp_rmem/d' /etc/sysctl.conf
+                echo "net.ipv4.tcp_wmem=4096 16384 $value" >> /etc/sysctl.conf
+                echo "net.ipv4.tcp_rmem=4096 87380 $value" >> /etc/sysctl.conf
+                sysctl -p
+                ;;
+            7)
+                echo "停止iperf3服务端进程..."
+                pkill iperf3
+                echo "退出脚本"
+                break
+                ;;
+            *)
+                echo "无效选择，请输入1-7之间的数字"
+                ;;
+        esac
+        echo "--------------------------------------------------"
+        read -p "按回车键继续..."
+        echo "--------------------------------------------------"
+    done
     ;;
 esac
