@@ -452,8 +452,8 @@ case "$choice" in
         echo "方案四：自由调整"
         echo "请选择操作："
         echo "1. 后台启动iperf3"
-        echo "2. 增减TCP缓冲区参数"
-        echo "3. 设置TC限速值"
+        echo "2. 自由调整TCP缓冲区参数"
+        echo "3. 自由设置TC限速值"
         echo "4. TCP缓冲区参数max值设为BDP"
         echo "5. TCP缓冲区参数max值设为32MiB"
         echo "6. TCP缓冲区参数max值设为64MiB"
@@ -511,7 +511,7 @@ case "$choice" in
             2)
                 # 显示当前值
                 current_wmem=$(sysctl net.ipv4.tcp_wmem | awk '{print $NF}')
-                echo "当前TCP写缓冲区max值：$current_wmem bytes"
+                echo "当前TCP发送缓冲区max值：$current_wmem bytes"
                 
                 # 获取调整值
                 while true; do
