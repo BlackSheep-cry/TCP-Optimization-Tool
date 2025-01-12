@@ -4,7 +4,7 @@
 echo "--------------------------------------------------"
 echo "TCP调优脚本-V25.01.12-BlackSheep"
 echo "原帖链接：https://www.nodeseek.com/post-197087-1"
-echo "更新日志及汇总：https://www.nodeseek.com/post-200517-1"
+echo "更新日志：https://www.nodeseek.com/post-200517-1"
 echo "--------------------------------------------------"
 echo "请阅读以下注意事项："
 echo "1. 此脚本的TCP调优操作对劣质线路无效"
