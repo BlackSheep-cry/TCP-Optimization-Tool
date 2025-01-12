@@ -2,6 +2,10 @@
 
 # 提示使用者
 echo "--------------------------------------------------"
+echo "TCP调优脚本-V25.01.12-BlackSheep"
+echo "原帖链接：https://www.nodeseek.com/post-197087-1"
+echo "更新日志及汇总：https://www.nodeseek.com/post-200517-1"
+echo "--------------------------------------------------"
 echo "请阅读以下注意事项："
 echo "1. 此脚本的TCP调优操作对劣质线路无效"
 echo "2. 小带宽用户默认参数基本就跑满了，无需进行调优"
@@ -9,8 +13,6 @@ echo "3. 调参消耗流量较多，请慎重调整"
 echo "4. 请在执行该脚本前放行相应端口"
 echo "5. 请先在客户端安装iperf3，不会安装/使用的请查看原贴"
 echo "6. 请在晚高峰使用该脚本"
-echo "--------------------------------------------------"
-echo "作者：BlackSheep   原帖链接：https://www.nodeseek.com/post-197087-1"
 echo "--------------------------------------------------"
 
 # 选择方案
@@ -236,7 +238,7 @@ case "$choice" in
     echo "脚本执行完毕！"
     ;;
   2)
-    echo "方案二：大参数+Traffic Control限速 (推荐)"
+    echo "方案二：大参数+Traffic Control限速"
 
     # 修改 sysctl.conf 并应用
     echo "net.ipv4.tcp_wmem=4096 16384 67108864" >> /etc/sysctl.conf
@@ -453,21 +455,22 @@ case "$choice" in
         echo "请选择操作："
         echo "1. 后台启动iperf3"
         echo "2. 自由调整TCP缓冲区参数"
-        echo "3. 自由设置TC限速值"
-        echo "4. TCP缓冲区参数max值设为BDP"
-        echo "5. TCP缓冲区参数max值设为32MiB"
-        echo "6. TCP缓冲区参数max值设为64MiB"
+        echo "3. 自由设置TC限速值(htb调度器)"
+        echo "4. 自由设置TC限速值(fq调度器|单线程效果更好，但限速仅对单线程生效，谨慎使用)"
+        echo "5. TCP缓冲区参数max值设为BDP"
+        echo "6. TCP缓冲区参数max值设为32MiB"
+        echo "7. TCP缓冲区参数max值设为64MiB"
 
-        echo "7. 结束iperf3进程并退出"
+        echo "8. 结束iperf3进程并退出"
         echo "--------------------------------------------------"
 
         # 获取用户选择
         while true; do
-            read -p "请输入操作编号 (1-7): " sub_choice
-            if [[ "$sub_choice" =~ ^[1-7]$ ]]; then
+            read -p "请输入操作编号 (1-8): " sub_choice
+            if [[ "$sub_choice" =~ ^[1-8]$ ]]; then
                 break
             else
-                echo "无效输入，请输入1-7之间的数字！"
+                echo "无效输入，请输入1-8之间的数字！"
             fi
         done
         echo "--------------------------------------------------"
@@ -582,6 +585,41 @@ case "$choice" in
                 chmod +x /etc/rc.local
                 ;;
             4)
+                # 显示网卡列表
+                echo "当前网卡列表："
+                ip link show
+                read -p "请输入要限制的网卡名称: " nic_name
+                
+                # 验证网卡是否存在
+                if ! ip link show "$nic_name" &>/dev/null; then
+                    echo "错误：网卡 $nic_name 不存在"
+                    continue
+                fi
+                
+               # 让用户输入新的限速值
+                while true; do
+                    read -p "请输入新的限速值(Mbps): " new_rate
+                    if [[ "$new_rate" =~ ^[0-9]+$ ]] && [ "$new_rate" -gt 0 ]; then
+                        break
+                    else
+                        echo "无效输入，请输入一个大于0的整数值。"
+                    fi
+                done
+
+                # 应用新的限速值
+                echo "设置新的限速值: ${new_rate}Mbps"
+                tc qdisc del dev "$nic_name" root 2>/dev/null
+                tc qdisc add dev "$nic_name" root fq maxrate ${new_rate}mbit
+
+                # 写入rc.local
+                echo "" | sudo tee /etc/rc.local > /dev/null
+                echo "#!/bin/bash" > /etc/rc.local
+                echo "tc qdisc add dev $nic_name root fq maxrate ${new_rate}mbit" >> /etc/rc.local
+                echo "exit 0" >> /etc/rc.local
+
+                chmod +x /etc/rc.local
+                ;;
+            5)
                # 设置TCP缓冲区参数max值为BDP
                 echo "设置TCP缓冲区参数max值为BDP值: $bdp bytes"
                 sed -i '/^net\.ipv4\.tcp_wmem/d' /etc/sysctl.conf
@@ -590,8 +628,8 @@ case "$choice" in
                 echo "net.ipv4.tcp_rmem=4096 87380 $bdp" >> /etc/sysctl.conf
                 sysctl -p
                 ;;
-            5)
-                # 设置为32MiB
+            6)
+                # 设置32MiB
                 value=$((32 * 1024 * 1024))
                 echo "设置TCP缓冲区参数max值为32MiB: $value bytes"
                 sed -i '/^net\.ipv4\.tcp_wmem/d' /etc/sysctl.conf
@@ -600,8 +638,8 @@ case "$choice" in
                 echo "net.ipv4.tcp_rmem=4096 87380 $value" >> /etc/sysctl.conf
                 sysctl -p
                 ;;
-            6)
-                # 设置为64MiB
+            7)
+                # 设置64MiB
                 value=$((64 * 1024 * 1024))
                 echo "设置TCP缓冲区参数max值为64MiB: $value bytes"
                 sed -i '/^net\.ipv4\.tcp_wmem/d' /etc/sysctl.conf
@@ -610,7 +648,7 @@ case "$choice" in
                 echo "net.ipv4.tcp_rmem=4096 87380 $value" >> /etc/sysctl.conf
                 sysctl -p
                 ;;
-            7)
+            8)
                 echo "停止iperf3服务端进程..."
                 pkill iperf3
                 echo "退出脚本"
