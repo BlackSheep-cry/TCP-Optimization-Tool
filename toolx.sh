@@ -2,7 +2,7 @@
 
 # 提示使用者
 echo "--------------------------------------------------"
-echo "TCP调优脚本-V25.01.12X-BlackSheep"
+echo "TCP调优脚本-V25.01.13X-BlackSheep"
 echo "原帖链接：https://www.nodeseek.com/post-197087-1"
 echo "更新日志：https://www.nodeseek.com/post-200517-1"
 echo "--------------------------------------------------"
@@ -17,18 +17,19 @@ echo "--------------------------------------------------"
 
 # 选择方案
 echo "请选择方案："
-echo "1. 直接调整参数"
-echo "2. 大参数+Traffic Control限速"
+echo "1. 半自动调参A(直接调参)"
+echo "2. 半自动调参B(TC限速+大参数)"
 echo "3. 调整复原"
 echo "4. 自由调整(推荐)"
+echo "5. 退出脚本"
 
 # 输入选择并检测是否有效
 while true; do
-    read -p "请输入方案编号 (1, 2, 3 或 4): " choice
-    if [[ "$choice" =~ ^[1-4]$ ]]; then
+    read -p "请输入方案编号(1-5): " choice
+    if [[ "$choice" =~ ^[1-5]$ ]]; then
         break
     else
-        echo "无效输入，请输入 1, 2, 3 或 4。"
+        echo "无效输入，请重新输入方案编号(1-5)。"
     fi
 done
 echo "--------------------------------------------------"
@@ -60,54 +61,10 @@ else
     echo "--------------------------------------------------"
 fi
 
-# 提醒用户当前的TCP缓冲区参数大小
-echo "当前TCP缓冲区参数大小如下："
-
 # 查询并输出当前的TCP缓冲区参数大小
+echo "当前TCP缓冲区参数大小如下："
 sysctl net.ipv4.tcp_wmem
-echo "--------------------------------------------------"
-
-# 获取用户输入的带宽和延迟，并确保输入有效
-while true; do
-    read -p "请输入本地带宽 (Mbps): " local_bandwidth
-    # 验证输入是否为正整数且不为零
-    if [[ "$local_bandwidth" =~ ^[1-9][0-9]*$ ]]; then
-        break
-    else
-        echo "无效输入，请输入一个大于零的正整数作为本地带宽 (Mbps)。"
-    fi
-done
-
-while true; do
-    read -p "请输入服务器带宽 (Mbps): " server_bandwidth
-    # 验证输入是否为正整数且不为零
-    if [[ "$server_bandwidth" =~ ^[1-9][0-9]*$ ]]; then
-        break
-    else
-        echo "无效输入，请输入一个大于零的正整数作为服务器带宽 (Mbps)。"
-    fi
-done
-
-while true; do
-    read -p "请输入往返时延/Ping值 (RTT, ms): " rtt
-    # 验证输入是否为正整数且不为零
-    if [[ "$rtt" =~ ^[1-9][0-9]*$ ]]; then
-        break
-    else
-        echo "无效输入，请输入一个大于零的正整数作为往返时延 (ms)。"
-    fi
-done
-
-echo "--------------------------------------------------"
-echo "本地带宽：$local_bandwidth Mbps"
-echo "服务器带宽：$server_bandwidth Mbps"
-echo "往返时延/Ping值：$rtt ms"
-echo "--------------------------------------------------"
-
-# 计算BDP（带宽延迟积）
-min_bandwidth=$((local_bandwidth < server_bandwidth ? local_bandwidth : server_bandwidth))
-bdp=$((min_bandwidth * rtt * 1000 / 8))
-echo "您的理论值为: $bdp 字节"
+sysctl net.ipv4.tcp_rmem
 echo "--------------------------------------------------"
 
 # 清除 sysctl.conf 中的 net.ipv4.tcp_wmem 和 net.ipv4.tcp_rmem 配置
@@ -122,7 +79,50 @@ fi
 # 执行不同方案的操作 
 case "$choice" in
   1)
-    echo "方案一：直接调整参数"
+    echo "方案一：半自动调参A(直接调参)"
+
+    # 获取用户输入的带宽和延迟，并确保输入有效
+    while true; do
+        read -p "请输入本机带宽 (Mbps): " local_bandwidth
+        # 验证输入是否为正整数且不为零
+        if [[ "$local_bandwidth" =~ ^[1-9][0-9]*$ ]]; then
+            break
+        else
+            echo "无效输入，请输入一个大于零的正整数作为本机带宽 (Mbps)。"
+        fi
+    done
+
+    while true; do
+        read -p "请输入对端带宽 (Mbps): " server_bandwidth
+        # 验证输入是否为正整数且不为零
+        if [[ "$server_bandwidth" =~ ^[1-9][0-9]*$ ]]; then
+            break
+        else
+            echo "无效输入，请输入一个大于零的正整数作为对端带宽 (Mbps)。"
+        fi
+    done
+
+    while true; do
+        read -p "请输入往返时延/Ping值 (RTT, ms): " rtt
+        # 验证输入是否为正整数且不为零
+        if [[ "$rtt" =~ ^[1-9][0-9]*$ ]]; then
+            break
+        else
+            echo "无效输入，请输入一个大于零的正整数作为往返时延 (ms)。"
+        fi
+    done
+
+    echo "--------------------------------------------------"
+    echo "本机带宽：$local_bandwidth Mbps"
+    echo "对端带宽：$server_bandwidth Mbps"
+    echo "往返时延/Ping值：$rtt ms"
+    echo "--------------------------------------------------"
+
+    # 计算BDP（带宽延迟积）
+    min_bandwidth=$((local_bandwidth < server_bandwidth ? local_bandwidth : server_bandwidth))
+    bdp=$((min_bandwidth * rtt * 1000 / 8))
+    echo "您的理论值为: $bdp 字节"
+    echo "--------------------------------------------------"
 
     # 初始 new_value 赋值
     new_value=$bdp
@@ -138,7 +138,7 @@ case "$choice" in
         local_ip=$(wget -qO- http://icanhazip.com)
     fi
 
-    echo "您的本机IP是: $local_ip"
+    echo "您的出口IP是: $local_ip"
     echo "--------------------------------------------------"
 
     while true; do
@@ -233,7 +233,33 @@ case "$choice" in
     echo "脚本执行完毕！"
     ;;
   2)
-    echo "方案二：大参数+Traffic Control限速"
+    echo "方案二：半自动调参B(TC限速+大参数)"
+
+    # 获取用户输入的带宽并确保输入有效
+    while true; do
+        read -p "请输入本机带宽 (Mbps): " local_bandwidth
+        # 验证输入是否为正整数且不为零
+        if [[ "$local_bandwidth" =~ ^[1-9][0-9]*$ ]]; then
+            break
+        else
+            echo "无效输入，请输入一个大于零的正整数作为本机带宽 (Mbps)。"
+        fi
+    done
+
+    while true; do
+        read -p "请输入对端带宽 (Mbps): " server_bandwidth
+        # 验证输入是否为正整数且不为零
+        if [[ "$server_bandwidth" =~ ^[1-9][0-9]*$ ]]; then
+            break
+        else
+            echo "无效输入，请输入一个大于零的正整数作为对端带宽 (Mbps)。"
+        fi
+    done
+
+    echo "--------------------------------------------------"
+    echo "本机带宽：$local_bandwidth Mbps"
+    echo "对端带宽：$server_bandwidth Mbps"
+    echo "--------------------------------------------------"
 
     # 修改 sysctl.conf 并应用
     echo "net.ipv4.tcp_wmem=4096 16384 67108864" >> /etc/sysctl.conf
@@ -277,7 +303,7 @@ case "$choice" in
         local_ip=$(wget -qO- http://icanhazip.com)
     fi
 
-    echo "您的本机IP是: $local_ip"
+    echo "您的出口IP是: $local_ip"
     echo "--------------------------------------------------"
 
     while true; do
@@ -478,7 +504,7 @@ case "$choice" in
                     local_ip=$(wget -qO- http://icanhazip.com)
                 fi
 
-                echo "您的本机IP是: $local_ip"
+                echo "您的出口IP是: $local_ip"
                 echo "--------------------------------------------------"
 
                 while true; do
@@ -613,6 +639,49 @@ case "$choice" in
                 chmod +x /etc/rc.local
                 ;;
             5)
+                # 获取用户输入的带宽和延迟，并确保输入有效
+                while true; do
+                    read -p "请输入本机带宽 (Mbps): " local_bandwidth
+                    # 验证输入是否为正整数且不为零
+                    if [[ "$local_bandwidth" =~ ^[1-9][0-9]*$ ]]; then
+                        break
+                    else
+                        echo "无效输入，请输入一个大于零的正整数作为本机带宽 (Mbps)。"
+                    fi
+                done
+
+                while true; do
+                    read -p "请输入对端带宽 (Mbps): " server_bandwidth
+                    # 验证输入是否为正整数且不为零
+                    if [[ "$server_bandwidth" =~ ^[1-9][0-9]*$ ]]; then
+                        break
+                    else
+                        echo "无效输入，请输入一个大于零的正整数作为对端带宽 (Mbps)。"
+                    fi
+                done
+
+                while true; do
+                    read -p "请输入往返时延/Ping值 (RTT, ms): " rtt
+                    # 验证输入是否为正整数且不为零
+                    if [[ "$rtt" =~ ^[1-9][0-9]*$ ]]; then
+                        break
+                    else
+                        echo "无效输入，请输入一个大于零的正整数作为往返时延 (ms)。"
+                    fi
+                done
+
+                echo "--------------------------------------------------"
+                echo "本机带宽：$local_bandwidth Mbps"
+                echo "对端带宽：$server_bandwidth Mbps"
+                echo "往返时延/Ping值：$rtt ms"
+                echo "--------------------------------------------------"
+
+                # 计算BDP（带宽延迟积）
+                min_bandwidth=$((local_bandwidth < server_bandwidth ? local_bandwidth : server_bandwidth))
+                bdp=$((min_bandwidth * rtt * 1000 / 8))
+                echo "您的理论值为: $bdp 字节"
+                echo "--------------------------------------------------"
+
                # 设置TCP缓冲区参数max值为BDP
                 echo "设置TCP缓冲区参数max值为BDP值: $bdp bytes"
                 sed -i '/^net\.ipv4\.tcp_wmem/d' /etc/sysctl.conf
@@ -621,7 +690,7 @@ case "$choice" in
                 sysctl -p
                 ;;
             6)
-                # 设置32MiB
+                # 设置为32MiB
                 value=$((32 * 1024 * 1024))
                 echo "设置TCP缓冲区参数max值为32MiB: $value bytes"
                 sed -i '/^net\.ipv4\.tcp_wmem/d' /etc/sysctl.conf
@@ -630,7 +699,7 @@ case "$choice" in
                 sysctl -p
                 ;;
             7)
-                # 设置64MiB
+                # 设置为64MiB
                 value=$((64 * 1024 * 1024))
                 echo "设置TCP缓冲区参数max值为64MiB: $value bytes"
                 sed -i '/^net\.ipv4\.tcp_wmem/d' /etc/sysctl.conf
@@ -645,12 +714,16 @@ case "$choice" in
                 break
                 ;;
             *)
-                echo "无效选择，请输入1-7之间的数字"
+                echo "无效选择，请输入1-8之间的数字"
                 ;;
         esac
         echo "--------------------------------------------------"
         read -p "按回车键继续..."
         echo "--------------------------------------------------"
     done
+    ;;
+  5)
+    echo "退出脚本"
+    exit 0
     ;;
 esac
