@@ -2,17 +2,16 @@
 
 # 提示使用者
 echo "--------------------------------------------------"
-echo "TCP调优脚本-V25.01.13-BlackSheep"
+echo "TCP调优脚本-V25.02.20-BlackSheep"
 echo "原帖链接：https://www.nodeseek.com/post-197087-1"
 echo "更新日志：https://www.nodeseek.com/post-200517-1"
 echo "--------------------------------------------------"
 echo "请阅读以下注意事项："
 echo "1. 此脚本的TCP调优操作对劣质线路无效"
-echo "2. 小带宽用户默认参数基本就跑满了，无需进行调优"
-echo "3. 调参消耗流量较多，请慎重调整"
-echo "4. 请在执行该脚本前放行相应端口"
-echo "5. 请先在客户端安装iperf3，不会安装/使用的请查看原贴"
-echo "6. 请在晚高峰使用该脚本"
+echo "2. 小带宽及极低延迟情境下，无需进行调优"
+echo "3. 请在执行该脚本前放行相应端口"
+echo "4. 请先在客户端/对端安装iperf3，不会安装/使用的请查看原贴"
+echo "5. 请在晚高峰进行调优"
 echo "--------------------------------------------------"
 
 # 选择方案
@@ -29,7 +28,7 @@ while true; do
     if [[ "$choice" =~ ^[1-5]$ ]]; then
         break
     else
-        echo "无效输入，请重新输入方案编号(1-5)。"
+        echo "无效输入，请重新输入方案编号(1-5)"
     fi
 done
 echo "--------------------------------------------------"
@@ -53,15 +52,35 @@ fi
 # 检查iperf3是否已安装
 if ! command -v iperf3 &> /dev/null; then
     echo "iperf3未安装，开始安装iperf3..."
-    echo "--------------------------------------------------"
-    apt-get update
-    apt-get install -y iperf3
+    if [ -f /etc/debian_version ]; then
+        apt-get update && apt-get install -y iperf3
+    elif [ -f /etc/redhat-release ]; then
+        yum install -y iperf3
+    else
+        echo "安装iperf3失败，请自行安装"
+        exit 1
+    fi
 else
-    echo "iperf3已经安装，跳过安装过程。"
-    echo "--------------------------------------------------"
+    echo "iperf3已安装，跳过安装过程"
+fi
+
+# 检查 nohup 是否已安装
+if ! command -v nohup &> /dev/null; then
+    echo "nohup 未安装，正在安装..."
+    if [ -f /etc/debian_version ]; then
+        apt-get update && apt-get install -y coreutils
+    elif [ -f /etc/redhat-release ]; then
+        yum install -y coreutils
+    else
+        echo "安装nohup失败，请自行安装"
+        exit 1
+    fi
+else
+    echo "nohup已安装，跳过安装过程"
 fi
 
 # 查询并输出当前的TCP缓冲区参数大小
+echo "--------------------------------------------------"
 echo "当前TCP缓冲区参数大小如下："
 sysctl net.ipv4.tcp_wmem
 sysctl net.ipv4.tcp_rmem
@@ -83,31 +102,31 @@ case "$choice" in
     # 获取用户输入的带宽和延迟，并确保输入有效
     while true; do
         read -p "请输入本机带宽 (Mbps): " local_bandwidth
-        # 验证输入是否为正整数且不为零
+        # 验证输入是否为正整数
         if [[ "$local_bandwidth" =~ ^[1-9][0-9]*$ ]]; then
             break
         else
-            echo "无效输入，请输入一个大于零的正整数作为本机带宽 (Mbps)。"
+            echo "无效输入，请输入一个正整数作为本机带宽 (Mbps)"
         fi
     done
 
     while true; do
         read -p "请输入对端带宽 (Mbps): " server_bandwidth
-        # 验证输入是否为正整数且不为零
+        # 验证输入是否为正整数
         if [[ "$server_bandwidth" =~ ^[1-9][0-9]*$ ]]; then
             break
         else
-            echo "无效输入，请输入一个大于零的正整数作为对端带宽 (Mbps)。"
+            echo "无效输入，请输入一个正整数作为对端带宽 (Mbps)"
         fi
     done
 
     while true; do
         read -p "请输入往返时延/Ping值 (RTT, ms): " rtt
-        # 验证输入是否为正整数且不为零
+        # 验证输入是否为正整数
         if [[ "$rtt" =~ ^[1-9][0-9]*$ ]]; then
             break
         else
-            echo "无效输入，请输入一个大于零的正整数作为往返时延 (ms)。"
+            echo "无效输入，请输入一个正整数作为往返时延 (ms)"
         fi
     done
 
@@ -149,10 +168,10 @@ case "$choice" in
 
         # 检查端口号是否有效
         if [[ "$iperf_port" =~ ^[0-9]+$ ]] && [ "$iperf_port" -ge 1 ] && [ "$iperf_port" -le 65535 ]; then
-            echo "端口 $iperf_port 有效，继续执行下一步。"
+            echo "端口 $iperf_port 有效，继续执行下一步"
             break
         else
-            echo "无效的端口号！请输入 1 到 65535 范围内的数字。"
+            echo "无效的端口号！请输入 1 到 65535 范围内的数字"
         fi
     done
     echo "--------------------------------------------------"
@@ -173,7 +192,7 @@ case "$choice" in
         if [[ "$retr" =~ ^[0-9]+$ ]]; then
             break
         else
-            echo "无效输入，请输入一个大于或等于零的整数作为Retr数目。"
+            echo "无效输入，请输入一个大于或等于零的整数作为Retr数目"
         fi
     done
 
@@ -190,7 +209,7 @@ case "$choice" in
         
         # 确保Retr数有效
         while [[ ! "$retr" =~ ^[0-9]+$ ]] || [ "$retr" -lt 0 ]; do
-            echo "无效输入，请输入一个大于或等于零的整数作为Retr数目。"
+            echo "无效输入，请输入一个大于或等于零的整数作为Retr数目"
             read -p "请输入Retr数: " retr
         done
 
@@ -213,7 +232,7 @@ case "$choice" in
 
         # 确保Retr数有效
         while [[ ! "$retr" =~ ^[0-9]+$ ]] || [ "$retr" -lt 0 ]; do
-            echo "无效输入，请输入一个大于或等于零的整数作为Retr数目。"
+            echo "无效输入，请输入一个大于或等于零的整数作为Retr数目"
             read -p "请输入Retr数: " retr
         done
 
@@ -241,21 +260,21 @@ case "$choice" in
     # 获取用户输入的带宽并确保输入有效
     while true; do
         read -p "请输入本机带宽 (Mbps): " local_bandwidth
-        # 验证输入是否为正整数且不为零
+        # 验证输入是否为正整数
         if [[ "$local_bandwidth" =~ ^[1-9][0-9]*$ ]]; then
             break
         else
-            echo "无效输入，请输入一个大于零的正整数作为本机带宽 (Mbps)。"
+            echo "无效输入，请输入一个正整数作为本机带宽 (Mbps)"
         fi
     done
 
     while true; do
         read -p "请输入对端带宽 (Mbps): " server_bandwidth
-        # 验证输入是否为正整数且不为零
+        # 验证输入是否为正整数
         if [[ "$server_bandwidth" =~ ^[1-9][0-9]*$ ]]; then
             break
         else
-            echo "无效输入，请输入一个大于零的正整数作为对端带宽 (Mbps)。"
+            echo "无效输入，请输入一个正整数作为对端带宽 (Mbps)"
         fi
     done
 
@@ -272,7 +291,7 @@ case "$choice" in
     # 显示当前网卡信息，让用户选择
     echo "当前网卡列表："
     ip link show
-    echo "请根据以上列表输入用于互联网通信的网卡名称（一般为 eth0 或 wlan0，通常是第二个）"
+    echo "请根据以上列表输入用于互联网通信的网卡名称（一般名为 eth0，通常是第二个）"
     read -p "请输入网卡名称：" second_nic
     echo "--------------------------------------------------"
 
@@ -318,10 +337,10 @@ case "$choice" in
 
         # 检查端口号是否有效
         if [[ "$iperf_port" =~ ^[0-9]+$ ]] && [ "$iperf_port" -ge 1 ] && [ "$iperf_port" -le 65535 ]; then
-            echo "端口 $iperf_port 有效，继续执行下一步。"
+            echo "端口 $iperf_port 有效，继续执行下一步"
             break
         else
-            echo "无效的端口号！请输入 1 到 65535 范围内的数字。"
+            echo "无效的端口号！请输入 1 到 65535 范围内的数字"
         fi
     done
     echo "--------------------------------------------------"
@@ -342,7 +361,7 @@ case "$choice" in
         if [[ "$retr" =~ ^[0-9]+$ ]]; then
             break
         else
-            echo "无效输入，请输入一个大于或等于零的整数作为Retr数目。"
+            echo "无效输入，请输入一个大于或等于零的整数作为Retr数目"
         fi
     done
 
@@ -365,7 +384,7 @@ case "$choice" in
 
         # 确保Retr数有效
         while [[ ! "$retr" =~ ^[0-9]+$ ]] || [ "$retr" -lt 0 ]; do
-            echo "无效输入，请输入一个大于或等于零的整数作为Retr数目。"
+            echo "无效输入，请输入一个大于或等于零的整数作为Retr数目"
             read -p "请输入Retr数: " retr
         done
 
@@ -394,7 +413,7 @@ case "$choice" in
 
         # 确保Retr数有效
         while [[ ! "$retr" =~ ^[0-9]+$ ]] || [ "$retr" -lt 0 ]; do
-            echo "无效输入，请输入一个大于或等于零的整数作为Retr数目。"
+            echo "无效输入，请输入一个大于或等于零的整数作为Retr数目"
             read -p "请输入Retr数: " retr
         done
 
@@ -407,6 +426,7 @@ case "$choice" in
     done
 
     # 写入 rc.local 以实现开机自启
+    echo "" | tee /etc/rc.local > /dev/null
     echo "#!/bin/bash" > /etc/rc.local
     echo "tc qdisc add dev $second_nic root handle 1:0 htb default 10" >> /etc/rc.local
     echo "tc class add dev $second_nic parent 1:0 classid 1:1 htb rate ${bandwidth_new}mbit ceil ${bandwidth_new}mbit" >> /etc/rc.local
@@ -432,21 +452,21 @@ case "$choice" in
     # 清除 sysctl.conf 中的 net.ipv4.tcp_wmem 和 net.ipv4.tcp_rmem 设置
     sed -i '/net\.ipv4\.tcp_wmem/d' /etc/sysctl.conf
     sed -i '/net\.ipv4\.tcp_rmem/d' /etc/sysctl.conf
-    echo "已从 /etc/sysctl.conf 中移除 net.ipv4.tcp_wmem 和 net.ipv4.tcp_rmem 设置。"
+    echo "已从 /etc/sysctl.conf 中移除 net.ipv4.tcp_wmem 和 net.ipv4.tcp_rmem 设置"
 
     # 设置默认值
     sysctl -w net.ipv4.tcp_wmem="4096 16384 4194304"
     sysctl -w net.ipv4.tcp_rmem="4096 87380 6291456"
-    echo "已将 net.ipv4.tcp_wmem 和 net.ipv4.tcp_rmem 重置为默认值。"
+    echo "已将 net.ipv4.tcp_wmem 和 net.ipv4.tcp_rmem 重置为默认值"
 
     # 清除 /etc/rc.local 中的所有内容
     if [ -f /etc/rc.local ]; then
       > /etc/rc.local
       echo "#!/bin/bash" > /etc/rc.local
       chmod +x /etc/rc.local
-      echo "已清空 /etc/rc.local 并添加基本脚本头部。"
+      echo "已清空 /etc/rc.local 并添加基本脚本头部"
     else
-      echo "/etc/rc.local 文件不存在，无需清理。"
+      echo "/etc/rc.local 文件不存在，无需清理"
     fi
 
     # 用户输入网卡名称
@@ -457,7 +477,7 @@ case "$choice" in
       if ip link show "$iface" &>/dev/null; then
         break
       else
-        echo "网卡名称无效或不存在，请重新输入。"
+        echo "网卡名称无效或不存在，请重新输入"
       fi
     done
 
@@ -465,9 +485,9 @@ case "$choice" in
     if command -v tc &> /dev/null; then
       tc qdisc del dev "$iface" root 2>/dev/null
       tc qdisc del dev "$iface" ingress 2>/dev/null
-      echo "已尝试清除网卡 $iface 的 tc 限速规则。"
+      echo "已尝试清除网卡 $iface 的 tc 限速规则"
     else
-      echo "tc 命令不可用，未执行限速清理。"
+      echo "tc 命令不可用，未执行限速清理"
     fi
 
     echo "--------------------------------------------------"
@@ -519,10 +539,10 @@ case "$choice" in
 
                     # 检查端口号是否有效
                     if [[ "$iperf_port" =~ ^[0-9]+$ ]] && [ "$iperf_port" -ge 1 ] && [ "$iperf_port" -le 65535 ]; then
-                        echo "端口 $iperf_port 有效，继续执行下一步。"
+                        echo "端口 $iperf_port 有效，继续执行下一步"
                         break
                     else
-                        echo "无效的端口号！请输入 1 到 65535 范围内的数字。"
+                        echo "无效的端口号！请输入 1 到 65535 范围内的数字"
                     fi
                 done
                 echo "--------------------------------------------------"
@@ -543,10 +563,10 @@ case "$choice" in
                 # 获取调整值
                 while true; do
                     read -p "请输入要增加或减少的值(MiB，使用正数增加，负数减少): " adjust_value
-                    if [[ "$adjust_value" =~ ^-?[0-9]+$ ]]; then
+                    if [[ "$adjust_value" =~ ^[+-]?[0-9]+$ ]]; then
                         break
                     else
-                        echo "无效输入，请输入一个整数。"
+                        echo "无效输入，请输入一个整数"
                     fi
                 done
                 
@@ -583,7 +603,7 @@ case "$choice" in
                     if [[ "$new_rate" =~ ^[0-9]+$ ]] && [ "$new_rate" -gt 0 ]; then
                         break
                     else
-                        echo "无效输入，请输入一个大于0的整数值。"
+                        echo "无效输入，请输入一个正整数"
                     fi
                 done
 
@@ -597,7 +617,7 @@ case "$choice" in
                 tc filter add dev "$nic_name" protocol ip parent 1:0 prio 1 u32 match ip dst 0.0.0.0/0 flowid 1:2
 
                 # 写入rc.local
-                echo "" | sudo tee /etc/rc.local > /dev/null
+                echo "" | tee /etc/rc.local > /dev/null
                 echo "#!/bin/bash" > /etc/rc.local
                 echo "tc qdisc add dev $nic_name root handle 1:0 htb default 10" >> /etc/rc.local
                 echo "tc class add dev $nic_name parent 1:0 classid 1:1 htb rate ${new_rate}mbit ceil ${new_rate}mbit" >> /etc/rc.local
@@ -626,7 +646,7 @@ case "$choice" in
                     if [[ "$new_rate" =~ ^[0-9]+$ ]] && [ "$new_rate" -gt 0 ]; then
                         break
                     else
-                        echo "无效输入，请输入一个大于0的整数值。"
+                        echo "无效输入，请输入一个正整数"
                     fi
                 done
 
@@ -636,7 +656,7 @@ case "$choice" in
                 tc qdisc add dev "$nic_name" root fq maxrate ${new_rate}mbit
 
                 # 写入rc.local
-                echo "" | sudo tee /etc/rc.local > /dev/null
+                echo "" | tee /etc/rc.local > /dev/null
                 echo "#!/bin/bash" > /etc/rc.local
                 echo "tc qdisc add dev $nic_name root fq maxrate ${new_rate}mbit" >> /etc/rc.local
                 echo "exit 0" >> /etc/rc.local
@@ -647,31 +667,31 @@ case "$choice" in
                 # 获取用户输入的带宽和延迟，并确保输入有效
                 while true; do
                     read -p "请输入本机带宽 (Mbps): " local_bandwidth
-                    # 验证输入是否为正整数且不为零
+                    # 验证输入是否为正整数
                     if [[ "$local_bandwidth" =~ ^[1-9][0-9]*$ ]]; then
                         break
                     else
-                        echo "无效输入，请输入一个大于零的正整数作为本机带宽 (Mbps)。"
+                        echo "无效输入，请输入一个正整数作为本机带宽 (Mbps)"
                     fi
                 done
 
                 while true; do
                     read -p "请输入对端带宽 (Mbps): " server_bandwidth
-                    # 验证输入是否为正整数且不为零
+                    # 验证输入是否为正整数
                     if [[ "$server_bandwidth" =~ ^[1-9][0-9]*$ ]]; then
                         break
                     else
-                        echo "无效输入，请输入一个大于零的正整数作为对端带宽 (Mbps)。"
+                        echo "无效输入，请输入一个正整数作为对端带宽 (Mbps)"
                     fi
                 done
 
                 while true; do
                     read -p "请输入往返时延/Ping值 (RTT, ms): " rtt
-                    # 验证输入是否为正整数且不为零
+                    # 验证输入是否为正整数
                     if [[ "$rtt" =~ ^[1-9][0-9]*$ ]]; then
                         break
                     else
-                        echo "无效输入，请输入一个大于零的正整数作为往返时延 (ms)。"
+                        echo "无效输入，请输入一个正整数作为往返时延 (ms)"
                     fi
                 done
 
