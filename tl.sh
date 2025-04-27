@@ -6,7 +6,7 @@ echo "1. 半自动调参A(直接调参)"
 echo "2. 半自动调参B(TC限速+大参数)"
 echo "0. 退出脚本"
 
-read -p "请输入方案编号: " choice
+read -p "请输入方案编号: " choice </dev/tty
 
 case "$choice" in
   1)
