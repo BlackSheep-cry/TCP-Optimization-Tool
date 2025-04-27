@@ -23,10 +23,6 @@ Windows：https://github.com/ar51an/iperf3-win-builds/releases/download/3.18/ipe
 wget -q https://raw.githubusercontent.com/BlackSheep-cry/TCP-Optimization-Tool/main/tool.sh -O tool.sh && chmod +x tool.sh && ./tool.sh
 ````
 
-***下面是仅调节发送缓冲区的版本，如果你不了解其中的含义，请务必使用上面的版本***
-```
-wget -q https://raw.githubusercontent.com/BlackSheep-cry/TCP-Optimization-Tool/main/toolx.sh -O toolx.sh && chmod +x toolx.sh && ./toolx.sh
-````
 ## 功能特点
 - 一键启用bbr+fq算法
 
