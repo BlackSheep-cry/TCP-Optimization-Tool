@@ -209,6 +209,52 @@ load_script() {
     rm -f "$tmpfile"
 }
 
+reset_tcp() {
+    clear_conf
+    sysctl -w net.ipv4.tcp_wmem="4096 16384 4194304"
+    sysctl -w net.ipv4.tcp_rmem="4096 87380 6291456"
+    echo "已将 net.ipv4.tcp_wmem 和 net.ipv4.tcp_rmem 重置为默认值"
+}
+
+reset_tc() {
+    if [ -f /etc/rc.local ]; then
+      > /etc/rc.local
+      echo "#!/bin/bash" > /etc/rc.local
+      chmod +x /etc/rc.local
+      echo "已清空 /etc/rc.local 并添加基本脚本头部"
+    else
+      echo "/etc/rc.local 文件不存在，无需清理"
+    fi
+
+    echo "当前网卡列表："
+    ip link show
+    while true; do
+      read -p "请根据以上列表输入被限速的网卡名称： " iface
+      if ip link show $iface &>/dev/null; then
+        break
+      else
+        echo "网卡名称无效或不存在，请重新输入"
+      fi
+    done
+
+    if command -v tc &> /dev/null; then
+      tc qdisc del dev $iface root 2>/dev/null
+      tc qdisc del dev $iface ingress 2>/dev/null
+      echo "已尝试清除网卡 $iface 的 tc 限速规则"
+    else
+      echo "tc 命令不可用，未执行限速清理"
+    fi
+
+    if ip link show ifb0 &>/dev/null; then
+      tc qdisc del dev ifb0 root 2>/dev/null
+      ip link set dev ifb0 down
+      ip link delete ifb0
+      echo "已删除 ifb0 网卡"
+    else
+      echo "ifb0 网卡不存在，无需删除"
+    fi
+}
+
 echo "选择方案："
 echo "1. 自由调整"
 echo "2. 调整复原"
@@ -230,6 +276,9 @@ case "$choice_main" in
         echo "5. 设置TC限速(HTB)"
         echo "6. 设置TC限速(CAKE)"
         echo "7. 设置TC限速(FQ | 仅对单个流作限制)"
+        echo ""
+        echo "8. 重置TCP缓冲区参数"
+        echo "9. 清除TC限速"
         echo "0. 结束iperf3进程并退出"
         echo "--------------------------------------------------"
 
@@ -454,6 +503,12 @@ EOF
                 read_limit_1
                 tc_limit "fq"
                 ;;
+            8)
+                reset_tcp
+                ;;
+            9)
+                reset_tc
+                ;;
             0)
                 echo "停止iperf3服务端进程..."
                 pkill iperf3
@@ -461,7 +516,7 @@ EOF
                 break
                 ;;
             *)
-                echo "无效选择，请输入0-7之间的数字"
+                echo "无效选择，请输入0-9之间的数字"
                 ;;
         esac
         echo "--------------------------------------------------"
@@ -472,47 +527,8 @@ EOF
   2)
     echo "调整复原"
 
-    clear_conf
-    sysctl -w net.ipv4.tcp_wmem="4096 16384 4194304"
-    sysctl -w net.ipv4.tcp_rmem="4096 87380 6291456"
-    echo "已将 net.ipv4.tcp_wmem 和 net.ipv4.tcp_rmem 重置为默认值"
-
-    if [ -f /etc/rc.local ]; then
-      > /etc/rc.local
-      echo "#!/bin/bash" > /etc/rc.local
-      chmod +x /etc/rc.local
-      echo "已清空 /etc/rc.local 并添加基本脚本头部"
-    else
-      echo "/etc/rc.local 文件不存在，无需清理"
-    fi
-
-    echo "当前网卡列表："
-    ip link show
-    while true; do
-      read -p "请根据以上列表输入被限速的网卡名称： " iface
-      if ip link show $iface &>/dev/null; then
-        break
-      else
-        echo "网卡名称无效或不存在，请重新输入"
-      fi
-    done
-
-    if command -v tc &> /dev/null; then
-      tc qdisc del dev $iface root 2>/dev/null
-      tc qdisc del dev $iface ingress 2>/dev/null
-      echo "已尝试清除网卡 $iface 的 tc 限速规则"
-    else
-      echo "tc 命令不可用，未执行限速清理"
-    fi
-
-    if ip link show ifb0 &>/dev/null; then
-      tc qdisc del dev ifb0 root 2>/dev/null
-      ip link set dev ifb0 down
-      ip link delete ifb0
-      echo "已删除 ifb0 网卡"
-    else
-      echo "ifb0 网卡不存在，无需删除"
-    fi
+    reset_tcp
+    reset_tc
 
     echo "--------------------------------------------------"
     echo "复原已完成"
