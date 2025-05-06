@@ -2,7 +2,7 @@
 
 # 提醒使用者
 echo "--------------------------------------------------"
-echo "TCP调优脚本-V25.04.27-BlackSheep"
+echo "TCP调优脚本-V25.05.07-BlackSheep"
 echo "原帖链接：https://www.nodeseek.com/post-197087-1"
 echo "更新日志：https://www.nodeseek.com/post-200517-1"
 echo "--------------------------------------------------"
@@ -12,22 +12,31 @@ echo "2. 小带宽或低延迟场景下，调优效果不显著"
 echo "3. 请尽量在晚高峰进行调优"
 echo "--------------------------------------------------"
 
-# 检查TCP拥塞控制算法与队列管理算法
-current_cc=$(sysctl net.ipv4.tcp_congestion_control | awk '{print $3}')
-current_qdisc=$(sysctl net.core.default_qdisc | awk '{print $3}')
+current_cc=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)
+current_qdisc=$(sysctl -n net.core.default_qdisc 2>/dev/null)
 
+# 启用BBR拥塞控制算法
 if [[ "$current_cc" != "bbr" ]]; then
-    echo "当前TCP拥塞控制算法: $current_cc，未启用BBR，尝试启用BBR..."
-    sed -i '/^net\.ipv4\.tcp_congestion_control/d' /etc/sysctl.conf
-    echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
-    sysctl -p
+    echo "当前TCP拥塞控制算法: ${current_cc:-未设置}，未启用BBR，尝试启用BBR..."
+    # 删除所有可能的旧配置（含空格、等号变体）
+    sed -i '/^[[:space:]]*net\.ipv4\.tcp_congestion_control[[:space:]]*=/d' /etc/sysctl.conf
+    # 标准化换行并追加新配置
+    sed -i -e '$a\' /etc/sysctl.conf  # 确保末尾换行
+    echo "net.ipv4.tcp_congestion_control = bbr" >> /etc/sysctl.conf
 fi
 
+# 启用fq_codel队列管理
 if [[ "$current_qdisc" != "fq_codel" ]]; then
-    echo "当前队列管理算法: $current_qdisc，未启用fq_codel，尝试启用fq_codel..."
-    sed -i '/^net\.core\.default_qdisc/d' /etc/sysctl.conf
-    echo "net.core.default_qdisc=fq_codel" >> /etc/sysctl.conf
-    sysctl -p
+    echo "当前队列管理算法: ${current_qdisc:-未设置}，未启用fq_codel，尝试启用fq_codel..."
+    sed -i '/^[[:space:]]*net\.core\.default_qdisc[[:space:]]*=/d' /etc/sysctl.conf
+    sed -i -e '$a\' /etc/sysctl.conf  # 确保末尾换行
+    echo "net.core.default_qdisc = fq_codel" >> /etc/sysctl.conf
+fi
+
+# 一次性应用所有配置变更
+if [[ "$current_cc" != "bbr" || "$current_qdisc" != "fq_codel" ]]; then
+    sysctl -p >/dev/null 2>&1
+    echo "配置已生效。"
 fi
 
 # 检查iperf3是否已安装
