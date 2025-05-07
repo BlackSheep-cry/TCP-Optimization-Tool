@@ -2,7 +2,7 @@
 
 # 提醒使用者
 echo "--------------------------------------------------"
-echo "TCP调优脚本-V25.05.07-BlackSheep"
+echo "TCP调优脚本-V25.05.08-BlackSheep"
 echo "原帖链接：https://www.nodeseek.com/post-197087-1"
 echo "更新日志：https://www.nodeseek.com/post-200517-1"
 echo "--------------------------------------------------"
@@ -25,16 +25,16 @@ if [[ "$current_cc" != "bbr" ]]; then
     echo "net.ipv4.tcp_congestion_control = bbr" >> /etc/sysctl.conf
 fi
 
-# 启用fq_codel队列管理
-if [[ "$current_qdisc" != "fq_codel" ]]; then
-    echo "当前队列管理算法: ${current_qdisc:-未设置}，未启用fq_codel，尝试启用fq_codel..."
+# 启用fq队列管理
+if [[ "$current_qdisc" != "fq" ]]; then
+    echo "当前队列管理算法: ${current_qdisc:-未设置}，未启用fq，尝试启用fq..."
     sed -i '/^[[:space:]]*net\.core\.default_qdisc[[:space:]]*=/d' /etc/sysctl.conf
     sed -i -e '$a\' /etc/sysctl.conf  # 确保末尾换行
-    echo "net.core.default_qdisc = fq_codel" >> /etc/sysctl.conf
+    echo "net.core.default_qdisc = fq" >> /etc/sysctl.conf
 fi
 
 # 一次性应用所有配置变更
-if [[ "$current_cc" != "bbr" || "$current_qdisc" != "fq_codel" ]]; then
+if [[ "$current_cc" != "bbr" || "$current_qdisc" != "fq" ]]; then
     sysctl -p >/dev/null 2>&1
     echo "配置已生效。"
 fi
